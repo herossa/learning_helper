@@ -42,5 +42,3 @@ class MainWindow(tk.Tk):
     def open_window(self):
         box_color = BoxColor(self)
         box_color.grab_set()
-
-
