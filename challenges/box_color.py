@@ -116,7 +116,9 @@ class BoxColor(tk.Toplevel):
 
         btn_answers = {}
         for choice in self._challenge_data['choices']:
-            btn_answers[choice] = lambda ch=choice: process_answer(self, ch, self._challenge_data['correct_choice'])
+            btn_answers[choice] = lambda selected_answer=choice: self.collect_data(self._challenge_data['choices'],
+                                                                                   self._challenge_data['correct_choice'],
+                                                                                   selected_answer)
 
         btn_objects = {}
         for choice in self._challenge_data['choices']:
@@ -127,3 +129,13 @@ class BoxColor(tk.Toplevel):
             )
             btn_objects[choice].place(x=space, y=(window_height / 2) - (self._btn_height / 2))
             space += self._btn_width + space_between_buttons
+
+    def collect_data(self, choices, correct_choice, answer):
+        self._parent_window.set_result_challenge_placeholder(
+            {
+                'choices': choices,
+                'correct_choice': correct_choice,
+                'answer': answer
+            }
+        )
+        self.destroy()

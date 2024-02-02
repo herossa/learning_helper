@@ -37,8 +37,14 @@ class MainWindow(tk.Tk):
                 command=lambda: self.quit())
             exit_btn.place(x=10, y=10)
 
+        self._result_challenge_placeholder = None
+
         self.open_window()
+
+    def set_result_challenge_placeholder(self, answer_data):
+        self._result_challenge_placeholder = answer_data
 
     def open_window(self):
         box_color = BoxColor(self)
-        box_color.grab_set()
+        self.wait_window(box_color)
+        print(self._result_challenge_placeholder)
