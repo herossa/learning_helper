@@ -75,6 +75,7 @@ class BoxColor(tk.Toplevel):
 
         self.attributes('-topmost', True)
         self.resizable(False, False)
+        self.wm_attributes('-fullscreen', 'True')
 
         window_width, window_height, window_x, window_y = self.get_geometry_coordinates()
         self.geometry("{}x{}+{}+{}".format(window_width, window_height, window_x, window_y))
@@ -88,6 +89,7 @@ class BoxColor(tk.Toplevel):
 
         self.title("Janela de perguntas")
         self.configure_window(window_width, window_height)
+
         self.deiconify()
 
     def get_geometry_coordinates(self):

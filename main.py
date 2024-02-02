@@ -1,8 +1,8 @@
 from main_window import MainWindow
 
-DEBUG = True
+DEBUG = False
 
 
 if __name__ == '__main__':
-    main_window = MainWindow(debug=True)
+    main_window = MainWindow(debug=DEBUG)
     main_window.mainloop()
