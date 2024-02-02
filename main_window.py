@@ -1,7 +1,7 @@
 import tkinter as tk
 
 
-class Wall(tk.Tk):
+class MainWindow(tk.Tk):
     def __init__(self, debug: bool = False):
         super().__init__()
         self.__debug = debug

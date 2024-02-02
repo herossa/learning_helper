@@ -5,7 +5,7 @@ import random
 from PIL import Image, ImageTk
 import numpy as np
 
-from wall import Wall
+from main_window import MainWindow
 from puzzle_data import PRIMARY_COLOR_DATA
 
 DEBUG = True
@@ -43,9 +43,9 @@ def process_answer(parent_window, answer, correct_answer):
 
 
 if __name__ == '__main__':
-    wall = Wall(debug=True)
+    main_window = MainWindow(debug=True)
     # root = wall.create_main_window()
-    main_window_height, main_window_width = wall.get_window_dimensions()
+    main_window_height, main_window_width = main_window.get_window_dimensions()
     # root = tk.Tk()
     # main_window_width = root.winfo_screenwidth()
     # main_window_height = root.winfo_screenheight()
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     #         command=lambda: root.quit())
     #     exit_btn.place(x=10, y=10)
 
-    puzzle_window = tk.Toplevel(wall)
+    puzzle_window = tk.Toplevel(main_window)
     # puzzle_window.overrideredirect(1)
     puzzle_window.attributes('-topmost', True)
     puzzle_window.resizable(False, False)
@@ -125,4 +125,4 @@ if __name__ == '__main__':
         space += btn_window_w + space_between_buttons
     puzzle_window.deiconify()
 
-    wall.mainloop()
+    main_window.mainloop()
