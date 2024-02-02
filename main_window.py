@@ -23,7 +23,6 @@ class MainWindow(tk.Tk):
             width=self.__monitor_info.width,
             height=self.__monitor_info.height
         )
-        self.resizable(False, False)
         self.wait_visibility(self)
         self.wm_attributes("-alpha", .5)
         self.geometry(
@@ -48,3 +47,4 @@ class MainWindow(tk.Tk):
         box_color = BoxColor(self)
         self.wait_window(box_color)
         print(self._result_challenge_placeholder)
+        self.destroy()
