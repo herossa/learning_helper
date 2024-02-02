@@ -44,7 +44,7 @@ def process_answer(parent_window, answer, correct_answer):
 
 if __name__ == '__main__':
     wall = Wall(debug=True)
-    root = wall.create_main_window()
+    # root = wall.create_main_window()
     main_window_height, main_window_width = wall.get_window_dimensions()
     # root = tk.Tk()
     # main_window_width = root.winfo_screenwidth()
@@ -65,10 +65,10 @@ if __name__ == '__main__':
     #         command=lambda: root.quit())
     #     exit_btn.place(x=10, y=10)
 
-    puzzle_window = tk.Toplevel()
+    puzzle_window = tk.Toplevel(wall)
     # puzzle_window.overrideredirect(1)
     puzzle_window.attributes('-topmost', True)
-    puzzle_window.resizable(0, 0)
+    puzzle_window.resizable(False, False)
     puzzle_window.title("Janela de perguntas")
     puzzle_window_w = int(main_window_width * 0.58) # 800 +-
     puzzle_window_h = int(main_window_height * 0.65) # 500 +-
@@ -125,4 +125,4 @@ if __name__ == '__main__':
         space += btn_window_w + space_between_buttons
     puzzle_window.deiconify()
 
-    root.mainloop()
+    wall.mainloop()
