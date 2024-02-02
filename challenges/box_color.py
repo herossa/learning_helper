@@ -1,7 +1,7 @@
 # The purpose of this challenge is to stimulate the comprehension and resolution of what is being asked to do.
 # In this case: identify the correct square color based on text tip.
 import tkinter as tk
-from tkinter import messagebox
+import customtkinter
 import random
 from PIL import Image, ImageTk
 import numpy as np
@@ -28,26 +28,6 @@ def create_image_array(shape=(20, 20), rgb=(0, 0, 0)):
     return custom_image
 
 
-def process_answer(parent_window, answer, correct_answer):
-    if answer == correct_answer:
-        messagebox.showinfo(
-            title='Parabéns!!!',
-            message='Parabéns, você acertou. Continue assim!!!',
-            icon='info',
-            type='ok',
-            parent=parent_window
-        )
-        # parent_window.quit()
-    else:
-        messagebox.showerror(
-            title='Você errou!!!',
-            icon='error',
-            message='Tente novamente!!!',
-            type='ok',
-            parent=parent_window
-        )
-
-
 def create_challenge_data():
     choices = random.sample(list(PRIMARY_COLOR_DATA.keys()), 3)
     correct_choice = random.choice(choices)
@@ -57,21 +37,24 @@ def create_challenge_data():
 def method_name(color_choices, btn_height, btn_width):
     btn_color_choices = {}
     for choice in color_choices:
-        btn_color_choices[choice] = ImageTk.PhotoImage(
-            Image.fromarray(
+        btn_color_choices[choice] = customtkinter.CTkImage(
+            light_image=Image.fromarray(
                 create_image_array(
                     shape=(btn_height, btn_width),
                     rgb=PRIMARY_COLOR_DATA[choice]["rgb_code"]
                 )
-            )
+            ),
+            size=(btn_height, btn_width)
         )
     return btn_color_choices
 
 
-class BoxColor(tk.Toplevel):
+class BoxColor(customtkinter.CTkToplevel):
     def __init__(self, parent_window):
         super().__init__(parent_window)
         self._parent_window = parent_window
+
+        customtkinter.set_appearance_mode('light')
 
         self.attributes('-topmost', True)
         self.resizable(False, False)
@@ -108,11 +91,10 @@ class BoxColor(tk.Toplevel):
             window_width - (self._btn_width * choices_len)) / (choices_len + 1)
         space = space_between_buttons
 
-        tk.Label(
+        customtkinter.CTkLabel(
             self,
             text=f"Qual é o quadrado {PRIMARY_COLOR_DATA[self._challenge_data['correct_choice']]['name']} ?",
-            border=True,
-            font=('Arial', 25),
+            font=('Arial', 35),
             pady=40
         ).pack()
 
@@ -124,10 +106,12 @@ class BoxColor(tk.Toplevel):
 
         btn_objects = {}
         for choice in self._challenge_data['choices']:
-            btn_objects[choice] = tk.Button(
+            btn_objects[choice] = customtkinter.CTkButton(
                 self,
+                text='',
                 image=self._btn_color_choices[choice],
-                command=btn_answers[choice]
+                command=btn_answers[choice],
+                fg_color=_from_rgb(PRIMARY_COLOR_DATA[choice]['rgb_code']),
             )
             btn_objects[choice].place(x=space, y=(window_height / 2) - (self._btn_height / 2))
             space += self._btn_width + space_between_buttons

@@ -1,4 +1,5 @@
 import tkinter as tk
+import customtkinter
 
 from screeninfo import get_monitors
 
@@ -12,7 +13,7 @@ def get_primary_monitor():
             return monitor
 
 
-class MainWindow(tk.Tk):
+class MainWindow(customtkinter.CTk):
     def __init__(self, debug: bool = False):
         super().__init__()
         self.__debug = debug
