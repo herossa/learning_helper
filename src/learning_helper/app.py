@@ -142,6 +142,13 @@ def self_check() -> int:
         if not stats_app_path().is_file():
             raise RuntimeError("app.py das estatísticas não encontrado")
 
+        # O painel importa este módulo ao rodar dentro do Streamlit; conferir
+        # aqui garante que o PyInstaller não o deixou de fora do bundle.
+        from learning_helper.stats import data as stats_data
+
+        if not callable(stats_data.load_attempts):
+            raise RuntimeError("módulo de dados das estatísticas incompleto")
+
         with tempfile.TemporaryDirectory(prefix="learning-helper-check-") as tmp:
             store = Store(Path(tmp) / "check.db")
             try:
