@@ -19,8 +19,8 @@ Set-Content -Path build/version_info.txt -Value $content -Encoding UTF8
 uv run pyinstaller packaging/learning-helper.spec --noconfirm
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou" }
 
-& .\dist\learning-helper\learning-helper.exe --self-check
-if ($LASTEXITCODE -ne 0) { throw "self-check do executável falhou" }
+$check = Start-Process -FilePath .\dist\learning-helper\learning-helper.exe -ArgumentList "--self-check" -Wait -PassThru
+if ($check.ExitCode -ne 0) { throw "self-check do executável falhou (exit $($check.ExitCode))" }
 
 $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
 if (-not $iscc) {

@@ -42,8 +42,8 @@ jobs:
           $appDir = Join-Path $env:LOCALAPPDATA "Programs\LearningHelper"
           $app = Join-Path $appDir "learning-helper.exe"
           if (!(Test-Path $app)) { throw "aplicativo não encontrado em $appDir" }
-          & $app --self-check
-          if ($LASTEXITCODE -ne 0) { throw "self-check do aplicativo instalado falhou" }
+          $check = Start-Process -FilePath $app -ArgumentList "--self-check" -Wait -PassThru
+          if ($check.ExitCode -ne 0) { throw "self-check do aplicativo instalado falhou (exit $($check.ExitCode))" }
           $uninstaller = Get-ChildItem "$appDir\unins*.exe" | Select-Object -First 1
           Start-Process -FilePath $uninstaller.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
           for ($i = 0; $i -lt 15 -and (Test-Path $appDir); $i++) { Start-Sleep -Seconds 1 }
