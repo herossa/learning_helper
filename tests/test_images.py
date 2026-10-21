@@ -1,0 +1,12 @@
+from learning_helper.overlay.images import color_swatch, rgb_to_hex
+
+
+def test_rgb_to_hex() -> None:
+    assert rgb_to_hex((255, 0, 128)) == "#ff0080"
+
+
+def test_color_swatch_size_and_pixels() -> None:
+    image = color_swatch((12, 34, 56), 5, 7)
+    assert image.size == (5, 7)
+    assert image.getpixel((0, 0)) == (12, 34, 56)
+    assert image.getpixel((4, 6)) == (12, 34, 56)

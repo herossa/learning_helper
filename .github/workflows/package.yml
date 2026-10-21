@@ -1,0 +1,132 @@
+name: package
+
+on:
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/package.yml"
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "packaging/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Instalar Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Gerar executável e instalador
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/build.ps1
+      - name: Instalar, validar e desinstalar
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/installer/*.exe | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait
+          $appDir = Join-Path $env:LOCALAPPDATA "Programs\LearningHelper"
+          $app = Join-Path $appDir "learning-helper.exe"
+          if (!(Test-Path $app)) { throw "aplicativo não encontrado em $appDir" }
+          & $app --self-check
+          if ($LASTEXITCODE -ne 0) { throw "self-check do aplicativo instalado falhou" }
+          $uninstaller = Get-ChildItem "$appDir\unins*.exe" | Select-Object -First 1
+          Start-Process -FilePath $uninstaller.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          for ($i = 0; $i -lt 15 -and (Test-Path $appDir); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path $appDir) { throw "desinstalação deixou arquivos em $appDir" }
+      - name: Guardar instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/installer/*.exe
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Instalar dependências
+        run: uv sync --frozen --group dev
+      - name: PyInstaller
+        run: uv run pyinstaller packaging/learning-helper.spec --noconfirm
+      - name: Self-check do binário
+        run: ./dist/learning-helper/learning-helper --self-check
+      - name: Definir versão
+        run: echo "VERSION=$(uv run python -c 'from learning_helper import __version__; print(__version__)')" >> "$GITHUB_ENV"
+      - name: Baixar appimagetool
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+      - name: Gerar AppImage
+        run: APPIMAGETOOL="$RUNNER_TEMP/appimagetool" APPIMAGETOOL_ARGS=--appimage-extract-and-run packaging/linux/build-appimage.sh "$VERSION"
+      - name: Self-check do AppImage
+        run: "./dist/LearningHelper-$VERSION-x86_64.AppImage --appimage-extract-and-run --self-check"
+      - name: Gerar pacote por usuário
+        run: packaging/linux/build-user-tarball.sh "$VERSION"
+      - name: Testar instalador por usuário em Ubuntu limpo
+        run: |
+          docker run --rm \
+            -v "$PWD/dist:/dist:ro" \
+            -v "$PWD/packaging/linux/test-user-install.sh:/test.sh:ro" \
+            ubuntu:22.04 bash -lc '
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq libx11-6 libxext6 libxrender1 libxft2 libfontconfig1 libfreetype6 >/dev/null
+              bash /test.sh /dist/LearningHelper-*-linux-x86_64.tar.gz
+            '
+      - name: Guardar artefatos Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            dist/*.AppImage
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Baixar artefatos
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Conferir versão da tag
+        run: |
+          version=$(uv run python -c "from learning_helper import __version__; print(__version__)")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "Tag $tag não bate com __version__ $version" >&2
+            exit 1
+          fi
+      - name: Gerar checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes
