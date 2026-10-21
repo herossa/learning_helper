@@ -72,7 +72,7 @@ jobs:
             echo "- Evento: push em \`main\`"
             echo
             echo "A branch \`main\` deve receber alterações apenas via merge de pull request."
-            echo "Este é um alerta: o repositório privado no plano Free não permite bloquear o push no servidor."
+            echo "O ruleset **Proteção da main** deveria ter bloqueado este push; verifique se houve bypass ou alteração na configuração."
             echo
             echo "Para o próximo push, use:"
             echo '```bash'
