@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import customtkinter
 from screeninfo import get_monitors
 
-from learning_helper import reminders
+from learning_helper import lifecycle, reminders
 from learning_helper.adaptive.engine import AdaptiveEngine
 from learning_helper.adaptive.models import ChallengeSpec
 from learning_helper.challenges.registry import build_challenge
@@ -47,16 +47,25 @@ class OverlayApp(customtkinter.CTk):
     imprevisível (a override-redirect tende a ficar acima da gerenciada).
     """
 
-    def __init__(self, engine: AdaptiveEngine, config: RuntimeConfig) -> None:
+    def __init__(
+        self,
+        engine: AdaptiveEngine,
+        config: RuntimeConfig,
+        *,
+        update_service=None,
+    ) -> None:
         super().__init__()
         self.engine = engine
         self.config = config
+        self._update_service = update_service
         self._panel: ChallengePanel | None = None
         self._showing = False
         self._job: str | None = None
         self._bathroom_panel: BathroomPanel | None = None
         self._bathroom_visible = False
         self._bathroom_job: str | None = None
+        self._quit_job: str | None = None
+        self._update_job: str | None = None
 
         customtkinter.set_appearance_mode("light")
         self.monitor = get_primary_monitor()
@@ -78,6 +87,33 @@ class OverlayApp(customtkinter.CTk):
 
         self._schedule_bathroom()
         self._schedule_next()
+        self._watch_quit()
+        if self._update_service is not None:
+            self._watch_updates()
+
+    def _watch_quit(self) -> None:
+        if lifecycle.quit_requested():
+            self.quit()
+            return
+        self._quit_job = self.after(500, self._watch_quit)
+
+    def _watch_updates(self) -> None:
+        service = self._update_service
+        pending = service.pending if service is not None else None
+        if pending is None and service is not None:
+            pending = service.accept_manual_request()
+        if (
+            pending is not None
+            and not self._showing
+            and not self._bathroom_visible
+        ):
+            try:
+                if service.apply():
+                    self.quit()
+                    return
+            except Exception:
+                LOGGER.exception("Falha ao aplicar atualização")
+        self._update_job = self.after(1000, self._watch_updates)
 
     def _apply_geometry(self) -> None:
         if self.monitor is None:

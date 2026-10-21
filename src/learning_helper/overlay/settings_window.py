@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import math
 import os
+import queue
 import subprocess
 import sys
+import threading
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import messagebox
 
 import customtkinter
 
-from learning_helper import autostart
+from learning_helper import __version__, autostart, lifecycle
 from learning_helper.config import MODULE_LABELS, MODULE_ORDER
-from learning_helper.persistence.db import Store
+from learning_helper.persistence.db import Store, data_dir
 from learning_helper.settings import Settings
 
 CARD_COLOR = "#f7f7f7"
@@ -40,6 +43,11 @@ class SettingsWindow(customtkinter.CTk):
         self._vars: dict[str, tk.StringVar] = {}
         self._module_vars: dict[str, tk.BooleanVar] = {}
         self._autostart_var: tk.BooleanVar | None = None
+        self._update_var: tk.BooleanVar | None = None
+        self._update_status: customtkinter.CTkLabel | None = None
+        self._update_button: customtkinter.CTkButton | None = None
+        self._updating = False
+        self._ui_queue: queue.Queue[Callable[[], None]] = queue.Queue()
         self._needs_initial_interval = (
             not store.onboarding_completed() and store.count_attempts() == 0
         )
@@ -58,6 +66,8 @@ class SettingsWindow(customtkinter.CTk):
         self._build()
         self._apply_settings(store.get_settings())
         self.after(60, self.focus_force)
+        self.after(100, self._poll_ui_queue)
+        self.after(500, self._watch_quit)
 
     def _build(self) -> None:
         header = customtkinter.CTkFrame(self, fg_color="transparent")
@@ -93,6 +103,8 @@ class SettingsWindow(customtkinter.CTk):
         self._build_routine(body)
         self._build_modules(body)
         self._build_data(body)
+        if not self._first_run:
+            self._build_updates(body)
 
         footer = customtkinter.CTkFrame(self, fg_color="transparent")
         footer.pack(fill="x", padx=28, pady=(8, 18))
@@ -274,6 +286,199 @@ class SettingsWindow(customtkinter.CTk):
             width=160,
         ).pack(anchor="w", padx=18, pady=(0, 14))
 
+    def _build_updates(self, parent) -> None:
+        card = self._section(parent, "Atualizações")
+        customtkinter.CTkLabel(
+            card,
+            text=f"Versão atual: {__version__}",
+            font=("Arial", 12),
+            text_color=TEXT_MUTED,
+            anchor="w",
+        ).pack(anchor="w", padx=18, pady=(0, 6))
+
+        row = customtkinter.CTkFrame(card, fg_color="transparent")
+        row.pack(fill="x", padx=18, pady=4)
+        customtkinter.CTkLabel(
+            row, text="Verificar atualizações ao iniciar", anchor="w", width=360
+        ).pack(side="left")
+        self._update_var = tk.BooleanVar(value=True)
+        customtkinter.CTkSwitch(
+            row,
+            text="",
+            variable=self._update_var,
+            onvalue=True,
+            offvalue=False,
+        ).pack(side="left", padx=(8, 0))
+
+        self._update_button = customtkinter.CTkButton(
+            card,
+            text="Verificar atualizações agora",
+            fg_color="transparent",
+            border_width=1,
+            text_color="#333333",
+            command=self._check_updates_async,
+            width=220,
+        )
+        self._update_button.pack(anchor="w", padx=18, pady=(8, 4))
+        self._update_status = customtkinter.CTkLabel(
+            card,
+            text="",
+            font=("Arial", 12),
+            text_color=TEXT_MUTED,
+            anchor="w",
+            wraplength=700,
+            justify="left",
+        )
+        self._update_status.pack(anchor="w", padx=18, pady=(0, 4))
+        self._caption(
+            card,
+            "Em builds instalados, a nova versão é baixada em segundo plano e "
+            "instalada silenciosamente, sem interromper um desafio na tela.",
+        )
+
+    def _watch_quit(self) -> None:
+        if lifecycle.quit_requested():
+            self.destroy()
+            return
+        try:
+            self.after(500, self._watch_quit)
+        except tk.TclError:
+            pass
+
+    def _post(self, callback: Callable[[], None]) -> None:
+        self._ui_queue.put(callback)
+
+    def _poll_ui_queue(self) -> None:
+        try:
+            while True:
+                callback = self._ui_queue.get_nowait()
+                try:
+                    callback()
+                except tk.TclError:
+                    pass
+        except queue.Empty:
+            pass
+        try:
+            self.after(100, self._poll_ui_queue)
+        except tk.TclError:
+            pass
+
+    def _set_update_status(self, text: str) -> None:
+        if self._update_status is None:
+            return
+        try:
+            self._update_status.configure(text=text)
+        except tk.TclError:
+            pass
+
+    def _reset_update_button(self) -> None:
+        if self._update_button is None:
+            return
+        try:
+            self._update_button.configure(state="normal")
+        except tk.TclError:
+            pass
+
+    def _finish_update(self) -> None:
+        self._updating = False
+        self._reset_update_button()
+
+    def _check_updates_async(self) -> None:
+        if self._updating:
+            return
+        self._updating = True
+        if self._update_button is not None:
+            self._update_button.configure(state="disabled")
+        self._set_update_status("Verificando atualizações...")
+        threading.Thread(
+            target=self._check_updates_worker,
+            name="learning-helper-manual-update",
+            daemon=True,
+        ).start()
+
+    def _check_updates_worker(self) -> None:
+        try:
+            from learning_helper.single_instance import SingleInstance
+            from learning_helper.updates.client import fetch_manifest
+            from learning_helper.updates.install import apply_pending, asset_key
+            from learning_helper.updates.manifest import is_newer
+            from learning_helper.updates.service import (
+                clear_manual_request,
+                prepare_update,
+                request_manual_update,
+            )
+            from learning_helper.updates.state import (
+                load_state,
+                record_attempt,
+                save_state,
+            )
+
+            release = fetch_manifest()
+            if not is_newer(release.version, __version__):
+                self._post(
+                    lambda: self._set_update_status(
+                        f"Você está na versão mais recente ({__version__})."
+                    )
+                )
+                return
+            if asset_key() is None:
+                self._post(
+                    lambda: self._set_update_status(
+                        f"Nova versão {release.version} disponível; "
+                        "instalação automática indisponível nesta execução."
+                    )
+                )
+                return
+
+            version = release.version
+            self._post(
+                lambda: self._set_update_status(f"Baixando {version}...")
+            )
+            pending = prepare_update(
+                release, __version__, data_dir(), force=True
+            )
+            if pending is None:
+                self._post(
+                    lambda: self._set_update_status(
+                        "Não há pacote de atualização para esta instalação."
+                    )
+                )
+                return
+            base = data_dir()
+            lock = SingleInstance(base / "app.lock")
+            if not lock.acquire():
+                # O app principal está aberto: o overlay aplica quando a tela
+                # estiver livre. Assim não há dois instaladores ao mesmo tempo.
+                request_manual_update(base, version)
+                self._post(
+                    lambda: self._set_update_status(
+                        f"Atualização {version} baixada; ela será instalada "
+                        "quando a tela estiver livre."
+                    )
+                )
+                return
+            try:
+                state = load_state(base)
+                record_attempt(state, pending.version, pending.path)
+                save_state(base, state)
+                clear_manual_request(base)
+                self._post(
+                    lambda: self._set_update_status(f"Instalando {version}...")
+                )
+                apply_pending(pending, base)
+                self._post(self.destroy)
+            finally:
+                lock.release()
+        except Exception as exc:
+            message = str(exc)
+            self._post(
+                lambda: self._set_update_status(
+                    f"Não foi possível atualizar: {message}"
+                )
+            )
+        finally:
+            self._post(self._finish_update)
+
     def _apply_settings(self, settings: Settings) -> None:
         values = {
             "initial": _fmt_minutes(settings.initial_interval_seconds),
@@ -300,6 +505,8 @@ class SettingsWindow(customtkinter.CTk):
             variable.set(module in settings.enabled_modules)
         if self._autostart_var is not None:
             self._autostart_var.set(autostart.is_enabled())
+        if self._update_var is not None:
+            self._update_var.set(settings.update_check_on_startup)
 
     def _reset_defaults(self) -> None:
         self._apply_settings(Settings())
@@ -371,6 +578,11 @@ class SettingsWindow(customtkinter.CTk):
                 module
                 for module in MODULE_ORDER
                 if self._module_vars[module].get()
+            ),
+            update_check_on_startup=(
+                bool(self._update_var.get())
+                if self._update_var is not None
+                else True
             ),
         )
         problems = settings.validate()

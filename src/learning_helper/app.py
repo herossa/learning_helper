@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import tempfile
 from dataclasses import replace
@@ -60,6 +61,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--stats",
         action="store_true",
         help="Abre as estatísticas no navegador.",
+    )
+    parser.add_argument(
+        "--check-updates",
+        action="store_true",
+        help="Verifica se há uma versão nova e sai.",
+    )
+    parser.add_argument(
+        "--quit",
+        action="store_true",
+        help="Encerra uma instância em execução.",
     )
     parser.add_argument(
         "--stats-server",
@@ -149,6 +160,18 @@ def self_check() -> int:
         if not callable(stats_data.load_attempts):
             raise RuntimeError("módulo de dados das estatísticas incompleto")
 
+        # O atualizador é importado em tempo de execução pelo app e pelas
+        # configurações; validar aqui evita descobrir módulos faltando só no
+        # build empacotado.
+        from learning_helper.updates import client, install, manifest, service, state
+
+        if not callable(client.fetch_manifest) or not callable(install.apply_pending):
+            raise RuntimeError("módulo de atualização incompleto")
+        if not callable(state.load_state) or not callable(service.prepare_update):
+            raise RuntimeError("módulo de atualização incompleto")
+        if not manifest.is_newer("0.0.2", "0.0.1"):
+            raise RuntimeError("comparação de versões do atualizador falhou")
+
         with tempfile.TemporaryDirectory(prefix="learning-helper-check-") as tmp:
             store = Store(Path(tmp) / "check.db")
             try:
@@ -166,6 +189,29 @@ def self_check() -> int:
 
 def _db_path(args: argparse.Namespace) -> Path:
     return Path(args.db) if args.db else default_db_path()
+
+
+def _check_updates() -> int:
+    from learning_helper.updates.client import fetch_manifest
+    from learning_helper.updates.install import select_asset
+    from learning_helper.updates.manifest import UpdateError, is_newer
+
+    try:
+        release = fetch_manifest()
+    except UpdateError as exc:
+        print(f"Não foi possível verificar atualizações: {exc}", file=sys.stderr)
+        return 1
+    if not is_newer(release.version, __version__):
+        print(f"Você está na versão mais recente ({__version__}).")
+        return 0
+    print(f"Nova versão disponível: {release.version} (atual {__version__}).")
+    selection = select_asset(release)
+    if selection is None:
+        print("Atualização automática não disponível nesta execução.")
+    else:
+        key, asset = selection
+        print(f"Pacote: {asset.name} ({key}).")
+    return 0
 
 
 def _handle_autostart(args: argparse.Namespace) -> int | None:
@@ -256,6 +302,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_check:
         return self_check()
 
+    from learning_helper import lifecycle
+
+    if args.check_updates:
+        return _check_updates()
+    if args.quit:
+        path = lifecycle.request_quit()
+        print(f"Solicitação de encerramento enviada ({path}).")
+        return 0
+
+    # Um pedido antigo não deve encerrar um processo que está nascendo agora.
+    lifecycle.clear_quit_request()
+
     if args.stats_server:
         from learning_helper.stats.server import run_streamlit
 
@@ -297,11 +355,27 @@ def _run(args: argparse.Namespace) -> int:
     try:
         if not store.onboarding_completed():
             _run_first_run_settings(store)
+
+        update_service = None
+        settings = store.get_settings()
+        if getattr(sys, "frozen", False):
+            from learning_helper.updates.service import UpdateService
+
+            update_service = UpdateService(__version__, data_dir())
+            if (
+                settings.update_check_on_startup
+                and not os.environ.get("LEARNING_HELPER_NO_UPDATE")
+            ):
+                update_service.start()
+
         engine = AdaptiveEngine(store)
         config = RuntimeConfig(debug=args.debug)
         from learning_helper.overlay.main_window import OverlayApp
 
-        app = OverlayApp(engine, config)
+        if update_service is None:
+            app = OverlayApp(engine, config)
+        else:
+            app = OverlayApp(engine, config, update_service=update_service)
         app.mainloop()
     finally:
         store.close()

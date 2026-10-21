@@ -169,3 +169,16 @@ def test_from_json_unknown_keeps_defaults() -> None:
 def test_bathroom_boolean_coercion(value: object, expected: bool) -> None:
     loaded = Settings.from_dict({"bathroom_reminder_enabled": value})
     assert loaded.bathroom_reminder_enabled is expected
+
+
+def test_update_check_is_enabled_by_default() -> None:
+    assert Settings().update_check_on_startup is True
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(True, True), (False, False), (0, False), (1, True)],
+)
+def test_update_check_boolean_coercion(value: object, expected: bool) -> None:
+    loaded = Settings.from_dict({"update_check_on_startup": value})
+    assert loaded.update_check_on_startup is expected
