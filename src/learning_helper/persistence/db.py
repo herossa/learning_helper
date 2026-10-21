@@ -49,7 +49,7 @@ def _loads_dt(value: str | None) -> datetime | None:
     return datetime.strptime(value, ISO_FORMAT).replace(tzinfo=timezone.utc)
 
 
-def _schema_sql() -> str:
+def schema_sql() -> str:
     schema_path = Path(__file__).with_name("schema.sql")
     return schema_path.read_text(encoding="utf-8")
 
@@ -68,7 +68,7 @@ class Store:
         self._conn.close()
 
     def _init_schema(self) -> None:
-        self._conn.executescript(_schema_sql())
+        self._conn.executescript(schema_sql())
         self._migrate_profile_columns()
         self._conn.commit()
 
