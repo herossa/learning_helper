@@ -11,7 +11,7 @@ dependencies = [
     "screeninfo",
 ]
 
-[project.scripts]
+[project.gui-scripts]
 learning-helper = "learning_helper.app:main"
 
 [build-system]

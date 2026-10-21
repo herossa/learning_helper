@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import sys
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,10 +14,21 @@ from learning_helper.config import INITIAL_INTERVAL_SECONDS, MODULE_ORDER
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
+def data_dir(
+    platform: str | None = None, env: Mapping[str, str] | None = None
+) -> Path:
+    """Diretório de dados do usuário, por plataforma."""
+    system = platform or sys.platform
+    environment = os.environ if env is None else env
+    if system == "win32":
+        base = environment.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    else:
+        base = environment.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+    return Path(base) / "learning_helper"
+
+
 def default_db_path() -> Path:
-    xdg = os.environ.get("XDG_DATA_HOME")
-    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
-    return base / "learning_helper" / "learning_helper.db"
+    return data_dir() / "learning_helper.db"
 
 
 def _utc_now() -> datetime:

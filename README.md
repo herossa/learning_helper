@@ -7,12 +7,25 @@ App de fundo que, de tempos em tempos, cobre a tela do computador com um desafio
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
 
+Funciona em Linux e Windows 10/11.
+
 ## Como rodar
+
+Linux:
 
 ```bash
 uv sync --group dev
-uv run python -m learning_helper
+uv run learning-helper
 ```
+
+Windows (PowerShell):
+
+```powershell
+uv sync --group dev
+uv run learning-helper
+```
+
+`learning-helper` usa o launcher gráfico: no Windows abre **sem janela de console**. Para acompanhar erros no terminal, use `uv run python -m learning_helper`.
 
 Modo desenvolvimento (intervalo de 10 segundos e botão `close` no overlay):
 
@@ -47,11 +60,19 @@ Padrão no Linux:
 
 `~/.local/share/learning_helper/learning_helper.db`
 
+Padrão no Windows:
+
+`%LOCALAPPDATA%\learning_helper\learning_helper.db`
+
 Outro caminho:
 
 ```bash
 uv run python -m learning_helper --db /caminho/arquivo.db
 ```
+
+## Iniciar com o Windows
+
+Crie um atalho para `.venv\Scripts\learning-helper.exe` na pasta de inicialização: `Win+R` → `shell:startup`. O atalho abre o app sem console.
 
 ## Atalho do adulto
 
@@ -63,4 +84,10 @@ uv run python -m learning_helper --db /caminho/arquivo.db
 uv run pytest
 ```
 
-Os testes cobrem o motor adaptativo, os geradores de desafio e o SQLite. A UI Tk fica de fora da suíte.
+Os testes cobrem o motor adaptativo, os geradores de desafio, o SQLite e a escolha de diretório/geometria por plataforma. A UI Tk fica de fora da suíte por padrão; para um teste de fumaça da janela (precisa de desktop), rode:
+
+```bash
+RUN_GUI_TESTS=1 uv run pytest tests/test_overlay_smoke.py
+```
+
+O CI (GitHub Actions) roda a suíte em Linux e Windows.
