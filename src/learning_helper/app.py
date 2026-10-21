@@ -4,6 +4,7 @@ import argparse
 import logging
 import sys
 import tempfile
+from dataclasses import replace
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -44,6 +45,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--self-check",
         action="store_true",
         help="Valida os recursos empacotados e sai (usado pelo build).",
+    )
+    parser.add_argument(
+        "--settings",
+        action="store_true",
+        help="Abre a tela de configuração e sai.",
+    )
+    parser.add_argument(
+        "--first-run",
+        action="store_true",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--enable-autostart",
@@ -97,17 +108,24 @@ def self_check() -> int:
         image = load_bathroom_image()
         if image.width <= 0 or image.height <= 0:
             raise RuntimeError("bathroom.png inválido")
+
         with tempfile.TemporaryDirectory(prefix="learning-helper-check-") as tmp:
             store = Store(Path(tmp) / "check.db")
             try:
                 if store.count_attempts() != 0:
                     raise RuntimeError("banco de verificação inesperado")
+                if store.onboarding_completed():
+                    raise RuntimeError("banco novo já estava configurado")
             finally:
                 store.close()
     except Exception:
         LOGGER.exception("Self-check falhou")
         return 1
     return 0
+
+
+def _db_path(args: argparse.Namespace) -> Path:
+    return Path(args.db) if args.db else default_db_path()
 
 
 def _handle_autostart(args: argparse.Namespace) -> int | None:
@@ -133,12 +151,13 @@ def _handle_autostart(args: argparse.Namespace) -> int | None:
 def _handle_bathroom_preference(args: argparse.Namespace) -> int | None:
     if not (args.enable_bathroom_reminder or args.disable_bathroom_reminder):
         return None
-    store = Store(Path(args.db) if args.db else default_db_path())
+    store = Store(_db_path(args))
     enabled = args.enable_bathroom_reminder and not args.disable_bathroom_reminder
     try:
-        profile = store.get_profile()
-        profile.bathroom_reminder_enabled = enabled
-        store.save_profile(profile)
+        settings = replace(
+            store.get_settings(), bathroom_reminder_enabled=enabled
+        )
+        store.save_settings(settings)
     finally:
         store.close()
     if enabled:
@@ -146,6 +165,50 @@ def _handle_bathroom_preference(args: argparse.Namespace) -> int | None:
     else:
         print("Lembrete de banheiro desabilitado.")
     return 0
+
+
+def _run_settings(args: argparse.Namespace) -> int:
+    store = Store(_db_path(args))
+    try:
+        from learning_helper.overlay.settings_window import run_settings_window
+
+        return run_settings_window(
+            store, first_run=bool(getattr(args, "first_run", False))
+        )
+    finally:
+        store.close()
+
+
+def _run_first_run_settings(store: Store) -> None:
+    """Abre a configuração inicial em outro processo.
+
+    O Tk/customtkinter mantém callbacks globais depois que uma janela é
+    destruída; separar o processo evita que a tela de configuração interfira
+    na janela do overlay (escala/fontes).
+    """
+    import subprocess
+
+    from learning_helper import autostart
+
+    command = autostart.executable_command() + [
+        "--settings",
+        "--first-run",
+        "--db",
+        str(store.db_path),
+    ]
+    try:
+        result = subprocess.run(command, check=False)
+    except OSError:
+        LOGGER.exception("Não foi possível abrir a configuração inicial")
+        result = None
+    if result is not None and result.returncode != 0:
+        LOGGER.warning(
+            "Tela de configuração inicial terminou com código %s",
+            result.returncode,
+        )
+    if not store.onboarding_completed():
+        LOGGER.warning("Configuração inicial não concluída; usando padrões.")
+        store.complete_onboarding()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -160,6 +223,9 @@ def main(argv: list[str] | None = None) -> int:
     bathroom_result = _handle_bathroom_preference(args)
     if bathroom_result is not None:
         return bathroom_result
+
+    if args.settings:
+        return _run_settings(args)
 
     log_path = setup_logging()
     LOGGER.info("Iniciando learning-helper %s (log: %s)", __version__, log_path)
@@ -178,8 +244,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
-    store = Store(Path(args.db) if args.db else default_db_path())
+    store = Store(_db_path(args))
     try:
+        if not store.onboarding_completed():
+            _run_first_run_settings(store)
         engine = AdaptiveEngine(store)
         config = RuntimeConfig(debug=args.debug)
         from learning_helper.overlay.main_window import OverlayApp

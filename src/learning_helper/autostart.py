@@ -54,3 +54,7 @@ def disable_autostart(path: Path | None = None) -> bool:
     except FileNotFoundError:
         return False
     return True
+
+
+def is_enabled(path: Path | None = None) -> bool:
+    return (path or autostart_path()).is_file()

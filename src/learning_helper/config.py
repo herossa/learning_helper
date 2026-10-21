@@ -3,6 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 MODULE_ORDER = ("colors", "math", "problems", "questions", "reading")
+MODULE_LABELS = {
+    "colors": "Cores",
+    "math": "Contas",
+    "problems": "Problemas",
+    "questions": "Perguntas",
+    "reading": "Leitura",
+}
 DEFAULT_UNLOCKED = ("colors",)
 MAX_LEVEL = 5
 ACCURACY_WINDOW = 10
@@ -34,24 +41,9 @@ ADULT_SHORTCUT_LABEL = "Control+Alt+Shift+P"
 @dataclass(frozen=True)
 class RuntimeConfig:
     debug: bool = False
-    adult_pause_seconds: int = ADULT_PAUSE_SECONDS
-    bathroom_interval_seconds: int = BATHROOM_INTERVAL_SECONDS
-    bathroom_duration_seconds: int = BATHROOM_DURATION_SECONDS
 
-    def delay_ms(self, adaptive_seconds: int) -> int:
+    def delay_ms(self, adaptive_seconds: int, minimum: int, maximum: int) -> int:
         if self.debug:
             return DEBUG_INTERVAL_SECONDS * 1000
-        bounded = max(MIN_INTERVAL_SECONDS, min(MAX_INTERVAL_SECONDS, adaptive_seconds))
+        bounded = max(minimum, min(maximum, adaptive_seconds))
         return bounded * 1000
-
-    @property
-    def bathroom_interval(self) -> int:
-        if self.debug:
-            return DEBUG_BATHROOM_INTERVAL_SECONDS
-        return self.bathroom_interval_seconds
-
-    @property
-    def bathroom_duration(self) -> int:
-        if self.debug:
-            return DEBUG_BATHROOM_DURATION_SECONDS
-        return self.bathroom_duration_seconds

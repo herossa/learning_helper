@@ -5,11 +5,13 @@ import os
 import sqlite3
 import sys
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from learning_helper.adaptive.models import Attempt, Profile
 from learning_helper.config import INITIAL_INTERVAL_SECONDS, MODULE_ORDER
+from learning_helper.settings import Settings
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
@@ -57,11 +59,16 @@ def schema_sql() -> str:
 class Store:
     def __init__(self, db_path: Path | None = None) -> None:
         self.db_path = Path(db_path) if db_path else default_db_path()
+        self._db_existed = (
+            self.db_path.exists() and self.db_path.stat().st_size > 0
+        )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.db_path)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA busy_timeout = 5000")
         self._init_schema()
         self._ensure_profile()
+        self._ensure_settings()
         self._migrate_unlocked_modules()
 
     def close(self) -> None:
@@ -87,17 +94,45 @@ class Store:
             self._conn.execute(
                 "ALTER TABLE profile ADD COLUMN last_bathroom_reminder_at TEXT"
             )
-        if "bathroom_reminder_enabled" not in columns:
-            self._conn.execute(
-                "ALTER TABLE profile ADD COLUMN bathroom_reminder_enabled "
-                "INTEGER NOT NULL DEFAULT 1"
-            )
 
     def _ensure_profile(self) -> None:
         row = self._conn.execute("SELECT id FROM profile WHERE id = 1").fetchone()
         if row is None:
             profile = Profile.default()
             self.save_profile(profile)
+
+    def _ensure_settings(self) -> None:
+        row = self._conn.execute("SELECT id FROM settings WHERE id = 1").fetchone()
+        if row is not None:
+            return
+        settings = Settings()
+        columns = {
+            row["name"]
+            for row in self._conn.execute("PRAGMA table_info(profile)").fetchall()
+        }
+        if "bathroom_reminder_enabled" in columns:
+            # Bancos até a 0.3.x guardavam a preferência no profile; ela passa
+            # a viver nas settings (a coluna antiga fica para trás, sem uso).
+            legacy = self._conn.execute(
+                "SELECT bathroom_reminder_enabled FROM profile WHERE id = 1"
+            ).fetchone()
+            if legacy is not None:
+                settings = replace(
+                    settings,
+                    bathroom_reminder_enabled=bool(legacy["bathroom_reminder_enabled"]),
+                )
+        self._conn.execute(
+            """
+            INSERT INTO settings (id, onboarding_completed, values_json, updated_at)
+            VALUES (1, ?, ?, ?)
+            """,
+            (
+                int(self._db_existed),
+                settings.to_json(),
+                _dumps_dt(_utc_now()),
+            ),
+        )
+        self._conn.commit()
 
     def _migrate_unlocked_modules(self) -> None:
         """Perfis antigos recebem `problems` logo depois de `math`."""
@@ -116,8 +151,7 @@ class Store:
         row = self._conn.execute(
             """
             SELECT unlocked_modules_json, levels_json, last_interrupt_at,
-                   adult_pause_until, interval_seconds, last_bathroom_reminder_at,
-                   bathroom_reminder_enabled
+                   adult_pause_until, interval_seconds, last_bathroom_reminder_at
             FROM profile WHERE id = 1
             """
         ).fetchone()
@@ -132,22 +166,20 @@ class Store:
             adult_pause_until=_loads_dt(row["adult_pause_until"]),
             interval_seconds=int(row["interval_seconds"]),
             last_bathroom_reminder_at=_loads_dt(row["last_bathroom_reminder_at"]),
-            bathroom_reminder_enabled=bool(row["bathroom_reminder_enabled"]),
         )
 
     def save_profile(self, profile: Profile) -> None:
         self._conn.execute(
             """
-            INSERT INTO profile (id, unlocked_modules_json, levels_json, last_interrupt_at, adult_pause_until, interval_seconds, last_bathroom_reminder_at, bathroom_reminder_enabled)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO profile (id, unlocked_modules_json, levels_json, last_interrupt_at, adult_pause_until, interval_seconds, last_bathroom_reminder_at)
+            VALUES (1, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 unlocked_modules_json = excluded.unlocked_modules_json,
                 levels_json = excluded.levels_json,
                 last_interrupt_at = excluded.last_interrupt_at,
                 adult_pause_until = excluded.adult_pause_until,
                 interval_seconds = excluded.interval_seconds,
-                last_bathroom_reminder_at = excluded.last_bathroom_reminder_at,
-                bathroom_reminder_enabled = excluded.bathroom_reminder_enabled
+                last_bathroom_reminder_at = excluded.last_bathroom_reminder_at
             """,
             (
                 json.dumps(profile.unlocked_modules),
@@ -156,8 +188,38 @@ class Store:
                 _dumps_dt(profile.adult_pause_until),
                 profile.interval_seconds,
                 _dumps_dt(profile.last_bathroom_reminder_at),
-                int(profile.bathroom_reminder_enabled),
             ),
+        )
+        self._conn.commit()
+
+    def get_settings(self) -> Settings:
+        row = self._conn.execute(
+            "SELECT values_json FROM settings WHERE id = 1"
+        ).fetchone()
+        return Settings.from_json(row["values_json"] if row else None)
+
+    def save_settings(self, settings: Settings) -> Settings:
+        errors = settings.validate()
+        if errors:
+            raise ValueError(" ".join(errors))
+        normalized = settings.normalized()
+        self._conn.execute(
+            "UPDATE settings SET values_json = ?, updated_at = ? WHERE id = 1",
+            (normalized.to_json(), _dumps_dt(_utc_now())),
+        )
+        self._conn.commit()
+        return normalized
+
+    def onboarding_completed(self) -> bool:
+        row = self._conn.execute(
+            "SELECT onboarding_completed FROM settings WHERE id = 1"
+        ).fetchone()
+        return bool(row["onboarding_completed"]) if row else False
+
+    def complete_onboarding(self) -> None:
+        self._conn.execute(
+            "UPDATE settings SET onboarding_completed = 1, updated_at = ? WHERE id = 1",
+            (_dumps_dt(_utc_now()),),
         )
         self._conn.commit()
 

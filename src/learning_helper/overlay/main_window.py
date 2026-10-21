@@ -11,7 +11,13 @@ from learning_helper import reminders
 from learning_helper.adaptive.engine import AdaptiveEngine
 from learning_helper.adaptive.models import ChallengeSpec
 from learning_helper.challenges.registry import build_challenge
-from learning_helper.config import ADULT_SHORTCUT, BATHROOM_DEFER_SECONDS, RuntimeConfig
+from learning_helper.config import (
+    ADULT_SHORTCUT,
+    BATHROOM_DEFER_SECONDS,
+    DEBUG_BATHROOM_DURATION_SECONDS,
+    DEBUG_BATHROOM_INTERVAL_SECONDS,
+    RuntimeConfig,
+)
 from learning_helper.overlay.bathroom import BathroomPanel
 from learning_helper.overlay.geometry import format_geometry
 from learning_helper.overlay.host import ChallengePanel
@@ -70,8 +76,8 @@ class OverlayApp(customtkinter.CTk):
             close_btn = tk.Button(self, text="close", command=self.quit)
             close_btn.place(x=10, y=10)
 
-        self.after(200, self._show_challenge)
         self._schedule_bathroom()
+        self._schedule_next()
 
     def _apply_geometry(self) -> None:
         if self.monitor is None:
@@ -99,7 +105,12 @@ class OverlayApp(customtkinter.CTk):
     def _schedule_next(self) -> None:
         if self._job is not None:
             self.after_cancel(self._job)
-        delay = self.config.delay_ms(self.engine.next_interval_seconds())
+        settings = self.engine.settings()
+        delay = self.config.delay_ms(
+            self.engine.next_interval_seconds(),
+            settings.min_interval_seconds,
+            settings.max_interval_seconds,
+        )
         pause_until = self.engine.profile().adult_pause_until
         if pause_until is not None:
             remaining_ms = int((pause_until - datetime.now(timezone.utc)).total_seconds() * 1000)
@@ -121,7 +132,12 @@ class OverlayApp(customtkinter.CTk):
         module_id = self.engine.pick_module()
         level = self.engine.current_level(module_id)
         spec = build_challenge(module_id, level)
-        self._panel = ChallengePanel(self, spec, on_answer=self._on_answer)
+        self._panel = ChallengePanel(
+            self,
+            spec,
+            on_answer=self._on_answer,
+            feedback_ms=self.engine.settings().feedback_ms,
+        )
         self._panel.place(
             relx=0.5,
             rely=0.5,
@@ -147,13 +163,19 @@ class OverlayApp(customtkinter.CTk):
             self.after_cancel(self._bathroom_job)
             self._bathroom_job = None
         profile = self.engine.profile()
-        if not profile.bathroom_reminder_enabled:
+        settings = self.engine.settings()
+        if not settings.bathroom_reminder_enabled:
             return
+        interval = (
+            DEBUG_BATHROOM_INTERVAL_SECONDS
+            if self.config.debug
+            else settings.bathroom_interval_seconds
+        )
         if delay_seconds is None:
             delay_seconds = reminders.seconds_until_next(
                 profile.last_bathroom_reminder_at,
                 datetime.now(timezone.utc),
-                self.config.bathroom_interval,
+                interval,
             )
         self._bathroom_job = self.after(
             max(int(delay_seconds * 1000), 200), self._show_bathroom
@@ -163,20 +185,24 @@ class OverlayApp(customtkinter.CTk):
         self._bathroom_job = None
         if self._bathroom_visible:
             return
-        if not self.engine.profile().bathroom_reminder_enabled:
+        settings = self.engine.settings()
+        if not settings.bathroom_reminder_enabled:
             return
         if self.engine.is_paused() or self._showing:
             # Pausa do adulto ou desafio na tela: tenta de novo em seguida.
             self._schedule_bathroom(BATHROOM_DEFER_SECONDS)
             return
+        duration = (
+            DEBUG_BATHROOM_DURATION_SECONDS
+            if self.config.debug
+            else settings.bathroom_duration_seconds
+        )
         self._bathroom_visible = True
         self.engine.record_bathroom_reminder()
-        LOGGER.info(
-            "Lembrete de banheiro exibido por %s s", self.config.bathroom_duration
-        )
+        LOGGER.info("Lembrete de banheiro exibido por %s s", duration)
         self._bathroom_panel = BathroomPanel(
             self,
-            seconds=self.config.bathroom_duration,
+            seconds=duration,
             on_finished=self._hide_bathroom,
         )
         self._bathroom_panel.place(
@@ -212,11 +238,11 @@ class OverlayApp(customtkinter.CTk):
     def _on_adult_pause(self) -> None:
         if self._bathroom_visible:
             self._hide_bathroom()
-            self.engine.pause_for_adult(self.config.adult_pause_seconds)
+            self.engine.pause_for_adult()
             self._schedule_next()
             return
         if not self._showing:
             return
-        self.engine.pause_for_adult(self.config.adult_pause_seconds)
+        self.engine.pause_for_adult()
         self._hide_overlay()
         self._schedule_next()
