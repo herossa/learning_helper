@@ -144,7 +144,7 @@ A seção **Dados** mostra o caminho do banco e abre a pasta onde ficam o banco 
 
 ## Atualizações
 
-Builds instalados consultam o `latest.json` da release mais recente **uma vez ao iniciar** (se a opção estiver ligada) e também pelo botão **Verificar atualizações agora** em Configurações. Não há verificação periódica enquanto o app está aberto.
+Builds instalados consultam o `latest.json` da release mais recente **uma vez ao iniciar** (se a opção estiver ligada) e também pelo botão **Verificar atualizações agora** em Configurações. Não há verificação periódica enquanto o app está aberto. O repositório e as releases são públicos, então a atualização funciona sem token.
 
 Quando há uma versão nova:
 
@@ -164,14 +164,16 @@ Para desligar a verificação automática, use a opção em **Configurações** 
 
 Se uma instalação falhar três vezes, o app espera 7 dias antes de tentar a mesma versão de novo. **Verificar atualizações agora** ignora esse bloqueio e tenta novamente. O andamento fica em `updates/apply.log` e em `app.log` (veja [Dados locais](#dados-locais)).
 
-### Repositório privado
+### Repositório público, token e espelhos
 
-O endereço padrão do manifesto é `releases/latest/download/latest.json` de `herossa/learning_helper`. Ele só funciona sem login se os assets da release forem públicos. Como este repositório é privado, use uma destas opções:
+O endereço padrão do manifesto é `releases/latest/download/latest.json` de `herossa/learning_helper`. Como o repositório e as releases são públicos, o app baixa o manifesto e os pacotes direto do GitHub Releases, sem login.
+
+Se o projeto voltar a ser privado, use uma destas opções:
 
 - defina `LEARNING_HELPER_UPDATE_TOKEN` com um token do GitHub **somente leitura** (fine-grained com *Contents: Read* ou classic com escopo `repo`). O app então consulta a API do GitHub e baixa o manifesto e o pacote autenticados;
 - publique `latest.json` e os pacotes em um endereço público e defina `LEARNING_HELPER_UPDATE_URL` com a URL do manifesto. Nesse caso os assets também precisam ser públicos.
 
-O token/URL precisa estar no ambiente do processo (variável de usuário/sistema ou serviço), não apenas no terminal de onde o app foi aberto. Sem token e com o repositório privado, a verificação falha com uma mensagem pedindo `LEARNING_HELPER_UPDATE_TOKEN`; o app continua funcionando normalmente.
+O token/URL, quando usados, precisa estar no ambiente do processo (variável de usuário/sistema ou serviço), não apenas no terminal de onde o app foi aberto. Sem token e com o repositório privado, a verificação falha com uma mensagem pedindo `LEARNING_HELPER_UPDATE_TOKEN`; o app continua funcionando normalmente.
 
 Pelo terminal:
 
