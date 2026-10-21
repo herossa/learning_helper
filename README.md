@@ -292,10 +292,15 @@ uv run python -m learning_helper --debug
 
 ### Branches e pull requests
 
-A branch `main` é protegida pelo ruleset **Proteção da main**, ativo no GitHub: alterações entram somente por merge de pull request, force push e exclusão estão bloqueados, e os checks `tests (ubuntu-latest)` e `tests (windows-latest)` precisam passar com a branch atualizada. Há ainda duas camadas de apoio:
+A branch `main` é protegida por dois rulesets ativos no GitHub:
+
+- **Proteção da main**: alterações entram somente por merge de pull request, force push e exclusão estão bloqueados, e os checks `tests (ubuntu-latest)` e `tests (windows-latest)` precisam passar com a branch atualizada. Sem bypass: vale inclusive para o administrador;
+- **Aprovação de PR**: exige uma aprovação e revisão do code owner definido em `.github/CODEOWNERS` (`@herossa`). PRs de outras pessoas precisam da aprovação de `@herossa`. O administrador tem bypass somente para pull request nesse ruleset, então consegue mesclar os próprios PRs sem autoaprovação; o bypass não afeta os checks nem os bloqueios de force push/exclusão.
+
+Há ainda duas camadas de apoio:
 
 - `.githooks/pre-push` recusa `git push` para `main` na sua máquina;
-- o workflow `branch-guard` falha e abre uma issue se algum push direto escapar do ruleset.
+- o workflow `branch-guard` falha e abre uma issue se algum push direto escapar dos rulesets.
 
 Ative o hook uma vez por clone:
 
@@ -312,7 +317,7 @@ git push -u origin minha-alteracao
 gh pr create
 ```
 
-O merge deve ser feito pela interface do GitHub ou por `gh pr merge`. O bloqueio local pode ser contornado com `--no-verify`, e clones que não rodaram o script não têm o hook; o ruleset no servidor é a garantia final. Mantenha o workflow `branch-guard` como alerta caso alguma configuração de bypass permita um push direto.
+O merge deve ser feito pela interface do GitHub ou por `gh pr merge`. O bloqueio local pode ser contornado com `--no-verify`, e clones que não rodaram o script não têm o hook; os rulesets no servidor são a garantia final. Mantenha o workflow `branch-guard` como alerta caso alguma configuração de bypass permita um push direto.
 
 ### Opções de linha de comando
 
