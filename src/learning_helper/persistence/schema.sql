@@ -21,5 +21,7 @@ CREATE TABLE IF NOT EXISTS profile (
     last_interrupt_at TEXT,
     adult_pause_until TEXT,
     -- 180 espelha INITIAL_INTERVAL_SECONDS (config.py).
-    interval_seconds INTEGER NOT NULL DEFAULT 180
+    interval_seconds INTEGER NOT NULL DEFAULT 180,
+    last_bathroom_reminder_at TEXT,
+    bathroom_reminder_enabled INTEGER NOT NULL DEFAULT 1
 );

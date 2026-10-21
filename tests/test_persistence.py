@@ -53,6 +53,24 @@ def test_profile_roundtrip(store: Store) -> None:
     assert loaded.interval_seconds == 240
 
 
+def test_bathroom_defaults(store: Store) -> None:
+    profile = store.get_profile()
+    assert profile.bathroom_reminder_enabled is True
+    assert profile.last_bathroom_reminder_at is None
+
+
+def test_bathroom_fields_roundtrip(store: Store) -> None:
+    reminded_at = datetime(2026, 10, 21, 12, 0, tzinfo=timezone.utc)
+    profile = store.get_profile()
+    profile.last_bathroom_reminder_at = reminded_at
+    profile.bathroom_reminder_enabled = False
+    store.save_profile(profile)
+
+    loaded = store.get_profile()
+    assert loaded.last_bathroom_reminder_at == reminded_at
+    assert loaded.bathroom_reminder_enabled is False
+
+
 def test_migration_adds_problems_after_math(store: Store) -> None:
     profile = store.get_profile()
     profile.unlocked_modules = ["colors", "math", "questions", "reading"]
@@ -97,6 +115,8 @@ def test_migrates_profile_without_interval_column(tmp_path) -> None:
     assert profile.interval_seconds == INITIAL_INTERVAL_SECONDS
     assert profile.unlocked_modules == ["colors", "math", "problems"]
     assert profile.levels["colors"] == 2
+    assert profile.bathroom_reminder_enabled is True
+    assert profile.last_bathroom_reminder_at is None
 
 
 def test_recent_attempts_are_oldest_first_in_window(store: Store) -> None:

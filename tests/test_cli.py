@@ -50,3 +50,37 @@ def test_parse_args_accepts_new_flags() -> None:
     assert args.self_check is True
     assert args.enable_autostart is True
     assert args.disable_autostart is True
+
+
+def test_parse_args_accepts_bathroom_flags() -> None:
+    args = parse_args(["--enable-bathroom-reminder", "--disable-bathroom-reminder"])
+    assert args.enable_bathroom_reminder is True
+    assert args.disable_bathroom_reminder is True
+
+
+def test_bathroom_flags_persist_preference(tmp_path: Path) -> None:
+    db_path = tmp_path / "learning_helper.db"
+    env = {"XDG_DATA_HOME": str(tmp_path), "LOCALAPPDATA": str(tmp_path)}
+
+    disabled = _run("--disable-bathroom-reminder", "--db", str(db_path), env=env)
+    assert disabled.returncode == 0, disabled.stderr
+    assert "desabilitado" in disabled.stdout
+
+    from learning_helper.persistence.db import Store
+
+    store = Store(db_path)
+    try:
+        assert store.get_profile().bathroom_reminder_enabled is False
+    finally:
+        store.close()
+
+    enabled = _run("--enable-bathroom-reminder", "--db", str(db_path), env=env)
+    assert enabled.returncode == 0, enabled.stderr
+    assert "habilitado" in enabled.stdout
+
+    store = Store(db_path)
+    try:
+        assert store.get_profile().bathroom_reminder_enabled is True
+    finally:
+        store.close()
+

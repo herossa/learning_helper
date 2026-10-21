@@ -47,6 +47,8 @@ class Profile:
     last_interrupt_at: datetime | None = None
     adult_pause_until: datetime | None = None
     interval_seconds: int = INITIAL_INTERVAL_SECONDS
+    last_bathroom_reminder_at: datetime | None = None
+    bathroom_reminder_enabled: bool = True
 
     @classmethod
     def default(cls) -> Profile:

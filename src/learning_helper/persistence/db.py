@@ -83,6 +83,15 @@ class Store:
                 "ALTER TABLE profile ADD COLUMN interval_seconds "
                 f"INTEGER NOT NULL DEFAULT {int(INITIAL_INTERVAL_SECONDS)}"
             )
+        if "last_bathroom_reminder_at" not in columns:
+            self._conn.execute(
+                "ALTER TABLE profile ADD COLUMN last_bathroom_reminder_at TEXT"
+            )
+        if "bathroom_reminder_enabled" not in columns:
+            self._conn.execute(
+                "ALTER TABLE profile ADD COLUMN bathroom_reminder_enabled "
+                "INTEGER NOT NULL DEFAULT 1"
+            )
 
     def _ensure_profile(self) -> None:
         row = self._conn.execute("SELECT id FROM profile WHERE id = 1").fetchone()
@@ -107,7 +116,8 @@ class Store:
         row = self._conn.execute(
             """
             SELECT unlocked_modules_json, levels_json, last_interrupt_at,
-                   adult_pause_until, interval_seconds
+                   adult_pause_until, interval_seconds, last_bathroom_reminder_at,
+                   bathroom_reminder_enabled
             FROM profile WHERE id = 1
             """
         ).fetchone()
@@ -121,19 +131,23 @@ class Store:
             last_interrupt_at=_loads_dt(row["last_interrupt_at"]),
             adult_pause_until=_loads_dt(row["adult_pause_until"]),
             interval_seconds=int(row["interval_seconds"]),
+            last_bathroom_reminder_at=_loads_dt(row["last_bathroom_reminder_at"]),
+            bathroom_reminder_enabled=bool(row["bathroom_reminder_enabled"]),
         )
 
     def save_profile(self, profile: Profile) -> None:
         self._conn.execute(
             """
-            INSERT INTO profile (id, unlocked_modules_json, levels_json, last_interrupt_at, adult_pause_until, interval_seconds)
-            VALUES (1, ?, ?, ?, ?, ?)
+            INSERT INTO profile (id, unlocked_modules_json, levels_json, last_interrupt_at, adult_pause_until, interval_seconds, last_bathroom_reminder_at, bathroom_reminder_enabled)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 unlocked_modules_json = excluded.unlocked_modules_json,
                 levels_json = excluded.levels_json,
                 last_interrupt_at = excluded.last_interrupt_at,
                 adult_pause_until = excluded.adult_pause_until,
-                interval_seconds = excluded.interval_seconds
+                interval_seconds = excluded.interval_seconds,
+                last_bathroom_reminder_at = excluded.last_bathroom_reminder_at,
+                bathroom_reminder_enabled = excluded.bathroom_reminder_enabled
             """,
             (
                 json.dumps(profile.unlocked_modules),
@@ -141,6 +155,8 @@ class Store:
                 _dumps_dt(profile.last_interrupt_at),
                 _dumps_dt(profile.adult_pause_until),
                 profile.interval_seconds,
+                _dumps_dt(profile.last_bathroom_reminder_at),
+                int(profile.bathroom_reminder_enabled),
             ),
         )
         self._conn.commit()
