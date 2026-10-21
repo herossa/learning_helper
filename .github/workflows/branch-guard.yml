@@ -28,6 +28,8 @@ jobs:
 
           violation=""
           bad_sha=""
+          max_attempts=6
+          retry_seconds=5
 
           if [ "$FORCED" = "true" ]; then
             violation="Force push para a main detectado."
@@ -45,11 +47,21 @@ jobs:
             fi
 
             for sha in "${commits[@]}"; do
-              merged=$(
-                gh api "repos/$REPO/commits/$sha/pulls" \
-                  --jq '[.[] | select(.merged_at != null)] | length' \
-                  2>/dev/null || echo 0
-              )
+              merged=0
+              for attempt in $(seq 1 "$max_attempts"); do
+                merged=$(
+                  gh api "repos/$REPO/commits/$sha/pulls" \
+                    --jq '[.[] | select(.merged_at != null)] | length' \
+                    2>/dev/null || echo 0
+                )
+                if [ "${merged:-0}" -gt 0 ]; then
+                  break
+                fi
+                if [ "$attempt" -lt "$max_attempts" ]; then
+                  echo "PR ainda não associado a $sha; tentando de novo em ${retry_seconds}s (${attempt}/${max_attempts})."
+                  sleep "$retry_seconds"
+                fi
+              done
               if [ "${merged:-0}" -eq 0 ]; then
                 violation="Commit sem PR mesclado associado: $sha"
                 bad_sha="$sha"
