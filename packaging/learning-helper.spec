@@ -31,6 +31,11 @@ binaries = []
 hiddenimports = ["PIL._tkinter_finder"]
 hiddenimports += collect_submodules("screeninfo")
 
+# O app.py das estatísticas é executado pelo Streamlit como script, então o
+# PyInstaller não encontra os imports dele na análise estática. Sem isso o
+# painel quebra com "cannot import name 'data'" na versão empacotada.
+hiddenimports += collect_submodules("learning_helper.stats")
+
 # O Streamlit carrega o frontend, os schemas do Altair e os assets do pydeck
 # como arquivos de dados. Sem eles o servidor sobe e a página fica em branco.
 for package in ("streamlit", "altair", "pydeck", "watchdog"):
