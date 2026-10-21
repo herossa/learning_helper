@@ -1,0 +1,130 @@
+[
+  {
+    "id": "q_dog",
+    "topic": "animais",
+    "difficulty": 1,
+    "prompt": "Qual animal faz au-au?",
+    "options": ["Cachorro", "Gato", "Pássaro", "Peixe"],
+    "answer": "Cachorro"
+  },
+  {
+    "id": "q_cat",
+    "topic": "animais",
+    "difficulty": 1,
+    "prompt": "Qual animal mia?",
+    "options": ["Gato", "Cachorro", "Vaca", "Cavalo"],
+    "answer": "Gato"
+  },
+  {
+    "id": "q_sun",
+    "topic": "cotidiano",
+    "difficulty": 1,
+    "prompt": "O que brilha no céu de dia?",
+    "options": ["Sol", "Lua", "Estrela cadente", "Nuvem"],
+    "answer": "Sol"
+  },
+  {
+    "id": "q_water",
+    "topic": "cotidiano",
+    "difficulty": 1,
+    "prompt": "O que a gente bebe quando está com sede?",
+    "options": ["Água", "Areia", "Pedra", "Fumaça"],
+    "answer": "Água"
+  },
+  {
+    "id": "q_cow",
+    "topic": "animais",
+    "difficulty": 2,
+    "prompt": "De qual animal vem o leite?",
+    "options": ["Vaca", "Galinha", "Peixe", "Sapo"],
+    "answer": "Vaca"
+  },
+  {
+    "id": "q_night",
+    "topic": "cotidiano",
+    "difficulty": 2,
+    "prompt": "Quando o céu fica escuro, é...",
+    "options": ["Noite", "Manhã", "Meio-dia", "Nascer do sol"],
+    "answer": "Noite"
+  },
+  {
+    "id": "q_tree",
+    "topic": "natureza",
+    "difficulty": 2,
+    "prompt": "O que tem tronco, galhos e folhas?",
+    "options": ["Árvore", "Pedra", "Rio", "Nuvem"],
+    "answer": "Árvore"
+  },
+  {
+    "id": "q_rain",
+    "topic": "natureza",
+    "difficulty": 2,
+    "prompt": "De onde cai a chuva?",
+    "options": ["Das nuvens", "Do chão", "Das pedras", "Do rio"],
+    "answer": "Das nuvens"
+  },
+  {
+    "id": "q_bee",
+    "topic": "animais",
+    "difficulty": 3,
+    "prompt": "Qual inseto faz mel?",
+    "options": ["Abelha", "Formiga", "Mosca", "Borboleta"],
+    "answer": "Abelha"
+  },
+  {
+    "id": "q_earth",
+    "topic": "natureza",
+    "difficulty": 3,
+    "prompt": "Em que planeta a gente mora?",
+    "options": ["Terra", "Marte", "Lua", "Sol"],
+    "answer": "Terra"
+  },
+  {
+    "id": "q_heart",
+    "topic": "corpo",
+    "difficulty": 3,
+    "prompt": "Qual órgão bombeia o sangue?",
+    "options": ["Coração", "Pulmão", "Estômago", "Cérebro"],
+    "answer": "Coração"
+  },
+  {
+    "id": "q_recycle",
+    "topic": "meio ambiente",
+    "difficulty": 3,
+    "prompt": "O que devemos fazer com o lixo reciclável?",
+    "options": ["Separar para reciclar", "Jogar no rio", "Queimar em casa", "Enterrar no jardim"],
+    "answer": "Separar para reciclar"
+  },
+  {
+    "id": "q_week",
+    "topic": "cotidiano",
+    "difficulty": 4,
+    "prompt": "Quantos dias tem uma semana?",
+    "options": ["7", "5", "10", "12"],
+    "answer": "7"
+  },
+  {
+    "id": "q_lungs",
+    "topic": "corpo",
+    "difficulty": 4,
+    "prompt": "Com o que a gente respira?",
+    "options": ["Pulmões", "Estômago", "Ossos", "Pele"],
+    "answer": "Pulmões"
+  },
+  {
+    "id": "q_amazon",
+    "topic": "meio ambiente",
+    "difficulty": 4,
+    "prompt": "Qual floresta é famosa no Brasil?",
+    "options": ["Amazônia", "Saara", "Alpes", "Himalaia"],
+    "answer": "Amazônia"
+  },
+  {
+    "id": "q_photosynthesis",
+    "topic": "natureza",
+    "difficulty": 5,
+    "prompt": "As plantas usam a luz do sol para fazer...",
+    "options": ["Seu alimento", "Pedras", "Nuvens de chuva", "Areia"],
+    "answer": "Seu alimento"
+  }
+]
