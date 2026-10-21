@@ -1,0 +1,26 @@
+[project]
+name = "learning-helper"
+version = "0.1.0"
+description = "Desafios periódicos na tela para impulsionar o aprendizado."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "customtkinter",
+    "numpy",
+    "pillow",
+    "screeninfo",
+]
+
+[project.gui-scripts]
+learning-helper = "learning_helper.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,122 @@
+[
+  {
+    "id": "r_casa",
+    "kind": "complete",
+    "difficulty": 1,
+    "prompt": "Eu moro numa ____.",
+    "options": ["casa", "lua", "chuva", "porta"],
+    "answer": "casa"
+  },
+  {
+    "id": "r_sol",
+    "kind": "complete",
+    "difficulty": 1,
+    "prompt": "De manhã o ____ brilha.",
+    "options": ["sol", "sapato", "prato", "livro"],
+    "answer": "sol"
+  },
+  {
+    "id": "r_gato",
+    "kind": "complete",
+    "difficulty": 1,
+    "prompt": "O ____ mia no sofá.",
+    "options": ["gato", "bolo", "barco", "lápis"],
+    "answer": "gato"
+  },
+  {
+    "id": "r_bola",
+    "kind": "spelling",
+    "difficulty": 1,
+    "prompt": "Qual palavra está escrita certo?",
+    "options": ["bola", "bolaah", "bolla", "bolaa"],
+    "answer": "bola"
+  },
+  {
+    "id": "r_escola",
+    "kind": "complete",
+    "difficulty": 2,
+    "prompt": "A criança vai para a ____ aprender.",
+    "options": ["escola", "geladeira", "nuvem", "areia"],
+    "answer": "escola"
+  },
+  {
+    "id": "r_amigo",
+    "kind": "complete",
+    "difficulty": 2,
+    "prompt": "Quem brinca comigo é meu ____.",
+    "options": ["amigo", "sapato", "telhado", "inverno"],
+    "answer": "amigo"
+  },
+  {
+    "id": "r_livro",
+    "kind": "spelling",
+    "difficulty": 2,
+    "prompt": "Qual palavra está escrita certo?",
+    "options": ["livro", "livru", "livvro", "liivro"],
+    "answer": "livro"
+  },
+  {
+    "id": "r_chuva",
+    "kind": "complete",
+    "difficulty": 3,
+    "prompt": "Peguei o guarda-chuva porque ia ____.",
+    "options": ["chover", "cantar", "dormir", "pular"],
+    "answer": "chover"
+  },
+  {
+    "id": "r_quente",
+    "kind": "complete",
+    "difficulty": 3,
+    "prompt": "No verão o tempo fica ____.",
+    "options": ["quente", "gelado", "escuro demais", "mudo"],
+    "answer": "quente"
+  },
+  {
+    "id": "r_feliz",
+    "kind": "spelling",
+    "difficulty": 3,
+    "prompt": "Qual palavra está escrita certo?",
+    "options": ["feliz", "felis", "felizz", "feliiz"],
+    "answer": "feliz"
+  },
+  {
+    "id": "r_jardim",
+    "kind": "complete",
+    "difficulty": 4,
+    "prompt": "Plantamos flores no ____.",
+    "options": ["jardim", "prato", "caderno", "telefone"],
+    "answer": "jardim"
+  },
+  {
+    "id": "r_coragem",
+    "kind": "complete",
+    "difficulty": 4,
+    "prompt": "Ela teve ____ para tentar de novo.",
+    "options": ["coragem", "cadeira", "janela", "tesoura"],
+    "answer": "coragem"
+  },
+  {
+    "id": "r_crianca",
+    "kind": "spelling",
+    "difficulty": 4,
+    "prompt": "Qual palavra está escrita certo?",
+    "options": ["criança", "criansa", "criánça", "crianssa"],
+    "answer": "criança"
+  },
+  {
+    "id": "r_floresta",
+    "kind": "complete",
+    "difficulty": 5,
+    "prompt": "Os animais selvagens vivem na ____.",
+    "options": ["floresta", "geladeira", "mochila", "escada"],
+    "answer": "floresta"
+  },
+  {
+    "id": "r_aprender",
+    "kind": "complete",
+    "difficulty": 5,
+    "prompt": "Estudar ajuda a gente a ____ coisas novas.",
+    "options": ["aprender", "esquecer", "esconder", "quebrar"],
+    "answer": "aprender"
+  }
+]
