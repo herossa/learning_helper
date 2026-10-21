@@ -144,6 +144,8 @@ A seção **Dados** mostra o caminho do banco e abre a pasta onde ficam o banco 
 
 ## Atualizações
 
+A atualização automática está disponível **a partir da v0.5.0**. Quem ainda está na v0.4.0 ou anterior precisa instalar a v0.5.0 uma vez; depois disso, as próximas versões instalam sozinhas.
+
 Builds instalados consultam o `latest.json` da release mais recente **uma vez ao iniciar** (se a opção estiver ligada) e também pelo botão **Verificar atualizações agora** em Configurações. Não há verificação periódica enquanto o app está aberto. O repositório e as releases são públicos, então a atualização funciona sem token.
 
 Quando há uma versão nova:
