@@ -7,9 +7,13 @@ import customtkinter
 from screeninfo import get_monitors
 
 from learning_helper.adaptive.engine import AdaptiveEngine
+from learning_helper.adaptive.models import ChallengeSpec
 from learning_helper.challenges.registry import build_challenge
 from learning_helper.config import ADULT_SHORTCUT, RuntimeConfig
-from learning_helper.overlay.host import ChallengeHost
+from learning_helper.overlay.host import ChallengePanel
+
+PANEL_RELWIDTH = 0.62
+PANEL_RELHEIGHT = 0.58
 
 
 def get_primary_monitor():
@@ -21,38 +25,45 @@ def get_primary_monitor():
 
 
 class OverlayApp(customtkinter.CTk):
+    """Janela única que cobre a tela e hospeda o desafio.
+
+    O desafio é um painel dentro desta janela, e não outra toplevel: duas
+    janelas disputando a camada "sempre no topo" se empilham de forma
+    imprevisível (a override-redirect tende a ficar acima da gerenciada).
+    """
+
     def __init__(self, engine: AdaptiveEngine, config: RuntimeConfig) -> None:
         super().__init__()
         self.engine = engine
         self.config = config
-        self._host: ChallengeHost | None = None
+        self._panel: ChallengePanel | None = None
         self._showing = False
         self._job: str | None = None
 
-        self.withdraw()
+        customtkinter.set_appearance_mode("light")
         self.monitor = get_primary_monitor()
-        self.bind_all(ADULT_SHORTCUT, lambda _event: self._on_adult_pause())
 
-        self._dimmer = customtkinter.CTkToplevel(self)
-        self._dimmer.withdraw()
-        self._dimmer.overrideredirect(True)
-        self._dimmer.attributes("-topmost", True)
-        self._dimmer.protocol("WM_DELETE_WINDOW", lambda: None)
-        if self.monitor is not None:
-            self._dimmer.geometry(
-                f"{self.monitor.width}x{self.monitor.height}+{self.monitor.x}+{self.monitor.y}"
-            )
-        self._dimmer.configure(fg_color="black")
-        try:
-            self._dimmer.attributes("-alpha", 0.5)
-        except tk.TclError:
-            pass
+        self.withdraw()
+        # Janela override-redirect: não é gerenciada pelo WM e, por isso, fica
+        # empilhada acima das janelas normais. `-topmost` é ignorado nesse modo.
+        self.overrideredirect(True)
+        self.configure(fg_color="#000000")
+        self.protocol("WM_DELETE_WINDOW", lambda: None)
+        self.bind_all(ADULT_SHORTCUT, lambda _event: self._on_adult_pause())
+        self._apply_geometry()
 
         if self.config.debug:
-            close_btn = tk.Button(self._dimmer, text="close", command=self.quit)
+            close_btn = tk.Button(self, text="close", command=self.quit)
             close_btn.place(x=10, y=10)
 
         self.after(200, self._show_challenge)
+
+    def _apply_geometry(self) -> None:
+        if self.monitor is None:
+            return
+        self.geometry(
+            f"{self.monitor.width}x{self.monitor.height}+{self.monitor.x}+{self.monitor.y}"
+        )
 
     def _schedule_next(self) -> None:
         if self._job is not None:
@@ -65,15 +76,6 @@ class OverlayApp(customtkinter.CTk):
                 delay = remaining_ms
         self._job = self.after(max(delay, 200), self._show_challenge)
 
-    def _challenge_geometry(self) -> tuple[int, int, int, int]:
-        if self.monitor is None:
-            return 800, 500, 100, 100
-        width = int(self.monitor.width * 0.58)
-        height = int(self.monitor.height * 0.65)
-        x = self.monitor.x + (self.monitor.width - width) // 2
-        y = self.monitor.y + (self.monitor.height - height) // 2
-        return width, height, x, y
-
     def _show_challenge(self) -> None:
         if self._showing:
             return
@@ -84,34 +86,32 @@ class OverlayApp(customtkinter.CTk):
         module_id = self.engine.pick_module()
         level = self.engine.current_level(module_id)
         spec = build_challenge(module_id, level)
-        self._dimmer.deiconify()
-        self._dimmer.lift()
-        self._host = ChallengeHost(
-            self._dimmer,
-            spec,
-            on_answer=self._on_answer,
-            on_adult_pause=self._on_adult_pause,
-            geometry=self._challenge_geometry(),
+        self._panel = ChallengePanel(self, spec, on_answer=self._on_answer)
+        self._panel.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+            relwidth=PANEL_RELWIDTH,
+            relheight=PANEL_RELHEIGHT,
         )
+        self._apply_geometry()
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+        self.after(50, self.lift)
 
     def _hide_overlay(self) -> None:
-        if self._host is not None:
-            try:
-                self._host.destroy()
-            except tk.TclError:
-                pass
-            self._host = None
-        self._dimmer.withdraw()
+        if self._panel is not None:
+            self._panel.destroy()
+            self._panel = None
         self._showing = False
+        self.withdraw()
 
-    def _on_answer(self, given_answer: str) -> None:
-        if self._host is None:
+    def _on_answer(self, spec: ChallengeSpec, given_answer: str) -> None:
+        if not self._showing:
             return
-        spec = self._host._spec
         self.engine.record_attempt(spec, given_answer)
-        self._host = None
-        self._dimmer.withdraw()
-        self._showing = False
+        self._hide_overlay()
         self._schedule_next()
 
     def _on_adult_pause(self) -> None:
