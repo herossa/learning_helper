@@ -1,0 +1,34 @@
+#!/bin/sh
+# Impede pushes diretos para a branch main.
+# Ative uma vez por clone com: scripts/setup-git-hooks.sh
+set -u
+
+PROTECTED="refs/heads/main"
+blocked=0
+
+while read -r _local_ref _local_oid remote_ref _remote_oid; do
+    if [ "${remote_ref:-}" = "$PROTECTED" ]; then
+        blocked=1
+    fi
+done
+
+if [ "$blocked" -eq 0 ]; then
+    exit 0
+fi
+
+cat >&2 <<'EOF'
+Push bloqueado: a branch main é protegida.
+
+Use uma branch e abra um pull request:
+
+  git switch -c minha-alteracao
+  git add .
+  git commit -m "Descreva a mudança"
+  git push -u origin minha-alteracao
+  gh pr create
+
+O merge é feito somente via PR na interface do GitHub (ou gh pr merge).
+Para emergências, o bloqueio local pode ser ignorado com --no-verify.
+EOF
+
+exit 1
