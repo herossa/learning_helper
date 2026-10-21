@@ -232,6 +232,30 @@ Modo desenvolvimento (intervalo de 10 segundos e botão `close` no overlay):
 uv run python -m learning_helper --debug
 ```
 
+### Branches e pull requests
+
+A branch `main` é protegida: alterações entram somente por merge de pull request. Como o repositório é privado no plano Free, o GitHub não permite bloquear o push no servidor; a proteção é feita em duas camadas:
+
+- `.githooks/pre-push` recusa `git push` para `main` na sua máquina;
+- o workflow `branch-guard` falha e abre uma issue se um push direto escapar.
+
+Ative o hook uma vez por clone:
+
+```bash
+scripts/setup-git-hooks.sh
+```
+
+Fluxo esperado:
+
+```bash
+git switch -c minha-alteracao
+# ... alterações e testes ...
+git push -u origin minha-alteracao
+gh pr create
+```
+
+O merge deve ser feito pela interface do GitHub ou por `gh pr merge`. O bloqueio local pode ser contornado com `--no-verify`, e clones que não rodaram o script não têm o hook; por isso a segunda camada no CI. Se o repositório virar público ou a conta passar para o GitHub Pro, troque o paliativo por um ruleset de branch na `main`.
+
 ### Opções de linha de comando
 
 ```text
@@ -279,6 +303,9 @@ src/learning_helper/
 ├── stats/               # consultas somente leitura + painel Streamlit
 └── persistence/         # SQLite e schema.sql
 packaging/               # PyInstaller, Inno Setup, AppImage, tar.gz e ícone
+.githooks/               # hooks locais (bloqueio de push direto na main)
+scripts/                 # ativação dos hooks locais
+.github/                 # workflows de testes, empacotamento e branch-guard
 tests/
 ```
 

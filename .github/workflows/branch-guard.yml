@@ -1,0 +1,91 @@
+name: branch-guard
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  pr-only:
+    name: Verificar origem do push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exigir merge de pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          FORCED: ${{ github.event.forced }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          violation=""
+          bad_sha=""
+
+          if [ "$FORCED" = "true" ]; then
+            violation="Force push para a main detectado."
+            bad_sha="$AFTER"
+          else
+            commits=()
+            if [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+              mapfile -t commits < <(
+                gh api "repos/$REPO/compare/$BEFORE...$AFTER" \
+                  --jq '.commits[].sha' 2>/dev/null || true
+              )
+            fi
+            if [ "${#commits[@]}" -eq 0 ]; then
+              commits=("$AFTER")
+            fi
+
+            for sha in "${commits[@]}"; do
+              merged=$(
+                gh api "repos/$REPO/commits/$sha/pulls" \
+                  --jq '[.[] | select(.merged_at != null)] | length' \
+                  2>/dev/null || echo 0
+              )
+              if [ "${merged:-0}" -eq 0 ]; then
+                violation="Commit sem PR mesclado associado: $sha"
+                bad_sha="$sha"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$violation" ]; then
+            echo "Push veio de PR mesclado; nada a fazer."
+            exit 0
+          fi
+
+          echo "::error::$violation"
+          {
+            echo "O workflow **branch-guard** detectou um push que não veio de um PR mesclado."
+            echo
+            echo "- Autor: @$ACTOR"
+            echo "- Commit: https://github.com/$REPO/commit/$bad_sha"
+            echo "- Evento: push em \`main\`"
+            echo
+            echo "A branch \`main\` deve receber alterações apenas via merge de pull request."
+            echo "Este é um alerta: o repositório privado no plano Free não permite bloquear o push no servidor."
+            echo
+            echo "Para o próximo push, use:"
+            echo '```bash'
+            echo "git switch -c minha-alteracao"
+            echo "git push -u origin minha-alteracao"
+            echo "gh pr create"
+            echo '```'
+          } > /tmp/branch-guard-body.md
+
+          gh issue create \
+            --repo "$REPO" \
+            --title "Push direto na main detectado" \
+            --body-file /tmp/branch-guard-body.md \
+            --assignee "$ACTOR" || true
+
+          exit 1
