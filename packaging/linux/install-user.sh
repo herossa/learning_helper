@@ -55,6 +55,28 @@ BIN_DIR="$PREFIX/bin"
 ICON_DIR="$PREFIX/share/icons/hicolor/256x256/apps"
 APPS_DIR="$PREFIX/share/applications"
 
+stop_running() {
+    [ -d "$TARGET" ] || return 0
+    if [ -x "$BIN_DIR/learning-helper" ]; then
+        "$BIN_DIR/learning-helper" --quit >/dev/null 2>&1 || true
+        sleep 1.5
+    fi
+    command -v pgrep >/dev/null 2>&1 || return 0
+    # Aceita o binário real e o symlink em bin/, mas não o uninstall.
+    pattern='(^|/)learning-helper( |$)'
+    pids=$(pgrep -f -- "$pattern" 2>/dev/null || true)
+    [ -n "$pids" ] || return 0
+    echo "Encerrando instância em execução..."
+    kill -TERM $pids 2>/dev/null || true
+    i=0
+    while [ "$i" -lt 25 ] && pgrep -f -- "$pattern" >/dev/null 2>&1; do
+        sleep 0.2
+        i=$((i + 1))
+    done
+    pkill -KILL -f -- "$pattern" 2>/dev/null || true
+}
+
+stop_running
 echo "Instalando em $TARGET"
 rm -rf "$TARGET"
 mkdir -p "$TARGET"

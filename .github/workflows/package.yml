@@ -65,8 +65,20 @@ jobs:
           if (!(Test-Path $app)) { throw "aplicativo não encontrado em $appDir" }
           $check = Start-Process -FilePath $app -ArgumentList "--self-check" -Wait -PassThru
           if ($check.ExitCode -ne 0) { throw "self-check do aplicativo instalado falhou (exit $($check.ExitCode))" }
+
+          $statsOut = Join-Path $env:TEMP "uninstall-stats-out.log"
+          $statsErr = Join-Path $env:TEMP "uninstall-stats-err.log"
+          $stats = Start-Process -FilePath $app -ArgumentList "--stats-server", "--stats-port", "8600" -RedirectStandardOutput $statsOut -RedirectStandardError $statsErr -PassThru
+          Start-Sleep -Seconds 3
+          if ($stats.HasExited) { throw "servidor de estatísticas não iniciou antes do teste" }
+
           $uninstaller = Get-ChildItem "$appDir\unins*.exe" | Select-Object -First 1
           Start-Process -FilePath $uninstaller.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          for ($i = 0; $i -lt 20 -and !$stats.HasExited; $i++) { Start-Sleep -Milliseconds 500 }
+          if (!$stats.HasExited) {
+            Stop-Process -Id $stats.Id -Force
+            throw "desinstalador não encerrou o servidor de estatísticas"
+          }
           for ($i = 0; $i -lt 15 -and (Test-Path $appDir); $i++) { Start-Sleep -Seconds 1 }
           if (Test-Path $appDir) { throw "desinstalação deixou arquivos em $appDir" }
       - name: Guardar instalador
@@ -130,7 +142,7 @@ jobs:
               set -e
               export DEBIAN_FRONTEND=noninteractive
               apt-get update -qq
-              apt-get install -y -qq libx11-6 libxext6 libxrender1 libxft2 libfontconfig1 libfreetype6 >/dev/null
+              apt-get install -y -qq libx11-6 libxext6 libxrender1 libxft2 libfontconfig1 libfreetype6 procps >/dev/null
               bash /test.sh /dist/LearningHelper-*-linux-x86_64.tar.gz
             '
       - name: Guardar artefatos Linux
@@ -164,6 +176,14 @@ jobs:
             echo "Tag $tag não bate com __version__ $version" >&2
             exit 1
           fi
+      - name: Gerar manifesto de atualização
+        run: |
+          version=$(uv run python -c "from learning_helper import __version__; print(__version__)")
+          uv run python packaging/make_update_manifest.py \
+            --version "$version" \
+            --dist dist \
+            --tag "$GITHUB_REF_NAME"
+          uv run python -m json.tool dist/latest.json
       - name: Gerar checksums
         run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
       - name: Publicar release
