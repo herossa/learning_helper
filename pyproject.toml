@@ -8,6 +8,7 @@ dependencies = [
     "customtkinter",
     "pillow",
     "screeninfo",
+    "streamlit>=1.40",
 ]
 
 [project.gui-scripts]

@@ -34,6 +34,27 @@ jobs:
         run: choco install innosetup --no-progress -y
       - name: Gerar executável e instalador
         run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/build.ps1
+      - name: Health check das estatísticas
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist/learning-helper/learning-helper.exe").Path
+          $out = Join-Path $env:TEMP "stats-out.log"
+          $err = Join-Path $env:TEMP "stats-err.log"
+          $proc = Start-Process -FilePath $exe -ArgumentList "--stats-server", "--stats-port", "8599" -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8599/_stcore/health" -TimeoutSec 1
+              if ($response.StatusCode -eq 200) { $ok = $true; break }
+            } catch {}
+            Start-Sleep -Milliseconds 500
+          }
+          if (!$proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          if (-not $ok) {
+            if (Test-Path $out) { Get-Content $out }
+            if (Test-Path $err) { Get-Content $err }
+            throw "health check do Streamlit falhou"
+          }
       - name: Instalar, validar e desinstalar
         shell: pwsh
         run: |
@@ -68,6 +89,25 @@ jobs:
         run: uv run pyinstaller packaging/learning-helper.spec --noconfirm
       - name: Self-check do binário
         run: ./dist/learning-helper/learning-helper --self-check
+      - name: Health check das estatísticas
+        run: |
+          set -e
+          ./dist/learning-helper/learning-helper --stats-server --stats-port 8599 > /tmp/stats.log 2>&1 &
+          pid=$!
+          ok=0
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8599/_stcore/health >/dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            sleep 0.5
+          done
+          kill "$pid" 2>/dev/null || true
+          wait "$pid" 2>/dev/null || true
+          if [ "$ok" != "1" ]; then
+            cat /tmp/stats.log
+            exit 1
+          fi
       - name: Definir versão
         run: echo "VERSION=$(uv run python -c 'from learning_helper import __version__; print(__version__)')" >> "$GITHUB_ENV"
       - name: Baixar appimagetool

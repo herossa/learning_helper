@@ -13,6 +13,7 @@ from learning_helper.config import (
     RuntimeConfig,
 )
 from learning_helper.persistence.db import Store
+from learning_helper.settings import Settings
 
 
 def _spec(module_id: str = "colors", level: int = 1, correct: str = "a") -> ChallengeSpec:
@@ -133,10 +134,103 @@ def test_interval_persists_between_engines(store: Store) -> None:
 
 def test_debug_config_keeps_short_fixed_delay() -> None:
     config = RuntimeConfig(debug=True)
-    assert config.delay_ms(MAX_INTERVAL_SECONDS) == 10_000
+    assert (
+        config.delay_ms(
+            MAX_INTERVAL_SECONDS, MIN_INTERVAL_SECONDS, MAX_INTERVAL_SECONDS
+        )
+        == 10_000
+    )
 
 
 def test_config_clamps_adaptive_delay() -> None:
     config = RuntimeConfig()
-    assert config.delay_ms(0) == MIN_INTERVAL_SECONDS * 1000
-    assert config.delay_ms(10_000) == MAX_INTERVAL_SECONDS * 1000
+    assert (
+        config.delay_ms(0, MIN_INTERVAL_SECONDS, MAX_INTERVAL_SECONDS)
+        == MIN_INTERVAL_SECONDS * 1000
+    )
+    assert (
+        config.delay_ms(10_000, MIN_INTERVAL_SECONDS, MAX_INTERVAL_SECONDS)
+        == MAX_INTERVAL_SECONDS * 1000
+    )
+
+
+def test_custom_interval_bounds_and_step(engine: AdaptiveEngine) -> None:
+    engine.store.save_settings(
+        Settings(
+            initial_interval_seconds=120,
+            min_interval_seconds=100,
+            max_interval_seconds=140,
+            interval_step_seconds=5,
+        )
+    )
+    profile = engine.profile()
+    profile.interval_seconds = 120
+    engine.store.save_profile(profile)
+
+    engine.record_attempt(_spec(), "a")
+    assert engine.next_interval_seconds() == 125
+
+    for _ in range(20):
+        engine.record_attempt(_spec(), "a")
+    assert engine.next_interval_seconds() == 140
+
+
+def test_lower_unlock_threshold_unlocks_earlier(engine: AdaptiveEngine) -> None:
+    engine.store.save_settings(Settings(unlock_threshold=0.5))
+    _fill(engine, "colors", 5)
+    assert "math" in engine.profile().unlocked_modules
+
+
+def test_disabled_modules_are_skipped_when_unlocking(engine: AdaptiveEngine) -> None:
+    engine.store.save_settings(
+        Settings(enabled_modules=("colors", "problems"))
+    )
+    _fill(engine, "colors", ACCURACY_WINDOW)
+    unlocked = engine.profile().unlocked_modules
+    assert "problems" in unlocked
+    assert "math" not in unlocked
+
+
+def test_pick_module_falls_back_to_an_enabled_module(engine: AdaptiveEngine) -> None:
+    engine.store.save_settings(Settings(enabled_modules=("reading",)))
+    assert engine.pick_module() == "reading"
+    assert "reading" in engine.profile().unlocked_modules
+
+
+def test_custom_max_level_is_respected(engine: AdaptiveEngine) -> None:
+    engine.store.save_settings(Settings(max_level=2))
+    profile = engine.profile()
+    profile.levels["colors"] = 2
+    engine.store.save_profile(profile)
+    _fill(engine, "colors", ACCURACY_WINDOW)
+    assert engine.profile().levels["colors"] == 2
+
+
+def test_disabled_module_levels_are_not_adapted(engine: AdaptiveEngine) -> None:
+    engine.store.save_settings(
+        Settings(enabled_modules=("math",), max_level=5)
+    )
+    profile = engine.profile()
+    profile.unlocked_modules = ["colors", "math"]
+    profile.levels["colors"] = 2
+    profile.levels["math"] = 1
+    engine.store.save_profile(profile)
+
+    _fill(engine, "colors", ACCURACY_WINDOW)
+    assert engine.profile().levels["colors"] == 2
+
+
+def test_unlock_skips_disabled_modules_at_the_frontier(engine: AdaptiveEngine) -> None:
+    engine.store.save_settings(
+        Settings(enabled_modules=("colors", "problems"))
+    )
+    profile = engine.profile()
+    profile.unlocked_modules = ["colors", "math"]
+    profile.levels["math"] = 1
+    profile.levels["problems"] = 1
+    engine.store.save_profile(profile)
+
+    _fill(engine, "colors", ACCURACY_WINDOW)
+    unlocked = engine.profile().unlocked_modules
+    assert "problems" in unlocked
+    assert "math" in unlocked

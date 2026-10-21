@@ -79,6 +79,37 @@ Exec="$TARGET/learning-helper"
 Icon=learning-helper
 Terminal=false
 Categories=Education;
+Actions=Settings;Statistics;
+
+[Desktop Action Settings]
+Name=Configurações
+Exec="$TARGET/learning-helper" --settings
+
+[Desktop Action Statistics]
+Name=Estatísticas
+Exec="$TARGET/learning-helper" --stats
+EOF
+
+cat > "$APPS_DIR/learning-helper-settings.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Learning Helper — Configurações
+Comment=Ajustar desafios, módulos e rotina
+Exec="$TARGET/learning-helper" --settings
+Icon=learning-helper
+Terminal=false
+Categories=Education;Settings;
+EOF
+
+cat > "$APPS_DIR/learning-helper-stats.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Learning Helper — Estatísticas
+Comment=Ver tentativas, acertos e níveis
+Exec="$TARGET/learning-helper" --stats
+Icon=learning-helper
+Terminal=false
+Categories=Education;Utility;
 EOF
 
 if command -v update-desktop-database >/dev/null 2>&1; then

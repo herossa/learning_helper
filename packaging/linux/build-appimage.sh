@@ -33,6 +33,15 @@ Exec=learning-helper
 Icon=learning-helper
 Terminal=false
 Categories=Education;
+Actions=Settings;Statistics;
+
+[Desktop Action Settings]
+Name=Configurações
+Exec=learning-helper --settings
+
+[Desktop Action Statistics]
+Name=Estatísticas
+Exec=learning-helper --stats
 EOF
 
 cat > "$APPDIR/AppRun" <<'EOF'

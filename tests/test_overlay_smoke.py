@@ -1,3 +1,4 @@
+import gc
 import os
 import random
 import time
@@ -18,6 +19,12 @@ from learning_helper.adaptive.engine import AdaptiveEngine
 from learning_helper.config import RuntimeConfig
 from learning_helper.overlay.main_window import OverlayApp
 from learning_helper.persistence.db import Store
+
+
+@pytest.fixture(autouse=True)
+def _collect_gui_garbage():
+    yield
+    gc.collect()
 
 
 def test_overlay_builds_and_destroys(tmp_path) -> None:
@@ -61,3 +68,128 @@ def test_overlay_shows_and_hides_bathroom_reminder(tmp_path, monkeypatch) -> Non
     finally:
         store.close()
 
+
+
+class _FastConfig(RuntimeConfig):
+    def delay_ms(self, adaptive_seconds: int, minimum: int, maximum: int) -> int:
+        return 300
+
+
+def test_overlay_does_not_show_challenge_immediately(tmp_path) -> None:
+    store = Store(tmp_path / "learning_helper.db")
+    engine = AdaptiveEngine(store, rng=random.Random(0))
+    try:
+        try:
+            app = OverlayApp(engine, _FastConfig())
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        app.update()
+        assert app._showing is False
+        assert app._job is not None
+
+        deadline = time.monotonic() + 3
+        while not app._showing and time.monotonic() < deadline:
+            app.update()
+            time.sleep(0.02)
+        assert app._showing is True
+        app.destroy()
+    finally:
+        store.close()
+
+
+def test_settings_window_saves_and_completes_onboarding(tmp_path) -> None:
+    from learning_helper.overlay.settings_window import SettingsWindow
+
+    store = Store(tmp_path / "learning_helper.db")
+    try:
+        try:
+            window = SettingsWindow(store, first_run=True)
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        window._vars["initial"].set("4")
+        window._save()
+        assert store.onboarding_completed() is True
+        assert store.get_settings().initial_interval_seconds == 240
+        assert store.get_profile().interval_seconds == 240
+    finally:
+        store.close()
+
+
+def test_settings_window_close_uses_defaults_on_first_run(tmp_path) -> None:
+    from learning_helper.overlay.settings_window import SettingsWindow
+    from learning_helper.settings import Settings
+
+    store = Store(tmp_path / "learning_helper.db")
+    try:
+        try:
+            window = SettingsWindow(store, first_run=True)
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        window._vars["initial"].set("9")
+        window._on_close()
+        assert store.onboarding_completed() is True
+        assert store.get_settings().initial_interval_seconds == (
+            Settings().initial_interval_seconds
+        )
+        assert store.get_profile().interval_seconds == (
+            Settings().initial_interval_seconds
+        )
+    finally:
+        store.close()
+
+
+def test_settings_window_cancel_does_not_save_in_normal_mode(tmp_path) -> None:
+    from learning_helper.overlay.settings_window import SettingsWindow
+
+    store = Store(tmp_path / "learning_helper.db")
+    store.save_settings(store.get_settings())
+    try:
+        try:
+            window = SettingsWindow(store, first_run=False)
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        window._vars["initial"].set("4")
+        window._on_close()
+        assert store.get_settings().initial_interval_seconds == 180
+    finally:
+        store.close()
+
+
+def test_settings_window_reports_validation_errors(tmp_path) -> None:
+    from learning_helper.overlay.settings_window import SettingsWindow
+
+    store = Store(tmp_path / "learning_helper.db")
+    try:
+        try:
+            window = SettingsWindow(store, first_run=True)
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        window._vars["initial"].set("99")
+        window._save()
+        assert window.winfo_exists()
+        assert window._status.cget("text")
+        assert store.get_settings().initial_interval_seconds == 180
+        window.destroy()
+    finally:
+        store.close()
+
+
+def test_settings_window_does_not_change_current_interval_later(tmp_path) -> None:
+    from learning_helper.overlay.settings_window import SettingsWindow
+
+    store = Store(tmp_path / "learning_helper.db")
+    store.complete_onboarding()
+    profile = store.get_profile()
+    profile.interval_seconds = 300
+    store.save_profile(profile)
+    try:
+        try:
+            window = SettingsWindow(store, first_run=False)
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        window._vars["initial"].set("4")
+        window._save()
+        assert store.get_settings().initial_interval_seconds == 240
+        assert store.get_profile().interval_seconds == 300
+    finally:
+        store.close()

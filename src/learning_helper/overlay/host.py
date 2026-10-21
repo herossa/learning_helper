@@ -25,10 +25,12 @@ class ChallengePanel(customtkinter.CTkFrame):
         spec: ChallengeSpec,
         *,
         on_answer: Callable[[ChallengeSpec, str], None],
+        feedback_ms: int = FEEDBACK_MS,
     ) -> None:
         super().__init__(parent, corner_radius=24, fg_color=CARD_COLOR)
         self._spec = spec
         self._on_answer = on_answer
+        self._feedback_ms = feedback_ms
         self._answered = False
 
         self.grid_columnconfigure(0, weight=1)
@@ -105,7 +107,7 @@ class ChallengePanel(customtkinter.CTkFrame):
         self._status.configure(
             text="Certo!" if correct else "Quase! Olhe com calma da próxima vez."
         )
-        self.after(FEEDBACK_MS, lambda: self._finish(selected))
+        self.after(self._feedback_ms, lambda: self._finish(selected))
 
     def _finish(self, selected: str) -> None:
         if not self.winfo_exists():
