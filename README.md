@@ -4,6 +4,7 @@ App de fundo que, de tempos em tempos, cobre a tela do computador com um desafio
 
 - 5 módulos: cores, contas, problemas, perguntas e leitura
 - Intervalo adaptativo entre 1 e 5 minutos, ajustado pelas respostas
+- Lembrete de banheiro a cada 30 minutos, bloqueando a tela por 1 minuto
 - Instalação por usuário, sem root, no Windows e no Linux
 - Dados guardados só na máquina, em SQLite
 
@@ -115,6 +116,22 @@ Cada resposta da criança é gravada em SQLite: teste (`module_id`), enunciado, 
 
 `Control+Alt+Shift+P` fecha o desafio **sem gravar tentativa** e pausa novos bloqueios por **30 minutos**. Não aparece na tela da criança. Esc e Alt+F4 não fecham o desafio.
 
+## Lembrete de banheiro
+
+A cada **30 minutos** aparece um aviso de banheiro que bloqueia a tela por **1 minuto**, com uma imagem e uma contagem regressiva. Não há nada para responder: ele fecha sozinho ao fim da contagem.
+
+- É independente dos desafios: não mexe em níveis, desbloqueio nem no histórico de tentativas.
+- Se um desafio estiver na tela, o lembrete espera o desafio terminar (e o desafio também espera o lembrete sair).
+- Durante a pausa do adulto, o lembrete também fica em espera.
+- `Control+Alt+Shift+P` fecha o lembrete na hora e mantém a pausa de 30 minutos.
+
+O lembrete vem **ligado** por padrão. Para desligar (ou religar):
+
+```bash
+learning-helper --disable-bathroom-reminder
+learning-helper --enable-bathroom-reminder
+```
+
 ## Dados locais
 
 Banco:
@@ -177,15 +194,17 @@ uv run python -m learning_helper --debug
 ### Opções de linha de comando
 
 ```text
---version             mostra a versão e sai
---self-check          valida recursos empacotados (schema e bancos) e sai
---debug               intervalo curto e botão de fechar no overlay
---db CAMINHO          usa outro arquivo SQLite
---enable-autostart    inicia com o usuário atual (Linux)
---disable-autostart   remove o autostart do usuário (Linux)
+--version                     mostra a versão e sai
+--self-check                  valida recursos empacotados (schema, bancos e imagem) e sai
+--debug                       intervalo curto e botão de fechar no overlay
+--db CAMINHO                  usa outro arquivo SQLite
+--enable-autostart            inicia com o usuário atual (Linux)
+--disable-autostart           remove o autostart do usuário (Linux)
+--enable-bathroom-reminder    liga o lembrete de banheiro (padrão)
+--disable-bathroom-reminder   desliga o lembrete de banheiro
 ```
 
-No Windows o autostart é gerenciado pelo instalador; as duas últimas opções apenas avisam isso e não alteram nada.
+No Windows o autostart é gerenciado pelo instalador; as duas opções de autostart apenas avisam isso e não alteram nada. As opções do lembrete de banheiro valem em qualquer plataforma e gravam a preferência no banco.
 
 ### Testes
 
@@ -208,6 +227,7 @@ src/learning_helper/
 ├── app.py               # CLI, logging, self-check e instância única
 ├── autostart.py         # entrada .desktop por usuário (Linux)
 ├── single_instance.py   # trava de arquivo multiplataforma
+├── reminders.py         # cálculo do lembrete de banheiro (sem Tk)
 ├── config.py            # intervalos, níveis e limites
 ├── adaptive/            # motor adaptativo (níveis, desbloqueio, intervalo)
 ├── challenges/          # geradores e bancos JSON (perguntas, leitura)
@@ -228,13 +248,13 @@ uv sync --frozen --group dev
 uv run pyinstaller packaging/learning-helper.spec --noconfirm
 
 # AppImage (precisa do appimagetool no PATH ou em APPIMAGETOOL)
-APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.2.0
+APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.3.0
 
 # pacote por usuário com install/uninstall
-packaging/linux/build-user-tarball.sh 0.2.0
+packaging/linux/build-user-tarball.sh 0.3.0
 
 # teste de instalação/desinstalação em HOME temporário
-packaging/linux/test-user-install.sh dist/LearningHelper-0.2.0-linux-x86_64.tar.gz
+packaging/linux/test-user-install.sh dist/LearningHelper-0.3.0-linux-x86_64.tar.gz
 ```
 
 Saídas em `dist/`: `LearningHelper-<versão>-x86_64.AppImage` e `LearningHelper-<versão>-linux-x86_64.tar.gz`.
@@ -244,7 +264,7 @@ Se o `appimagetool` for o próprio AppImage, rode:
 ```bash
 APPIMAGETOOL=./appimagetool-x86_64.AppImage \
 APPIMAGETOOL_ARGS=--appimage-extract-and-run \
-packaging/linux/build-appimage.sh 0.2.0
+packaging/linux/build-appimage.sh 0.3.0
 ```
 
 ### Windows
@@ -266,13 +286,19 @@ O ícone é um placeholder gerado por `packaging/make_icon.py` (PNG 512 e ICO mu
 uv run python packaging/make_icon.py
 ```
 
+A imagem do lembrete de banheiro (`src/learning_helper/overlay/bathroom.png`) segue a mesma ideia e é gerada por `packaging/make_bathroom_image.py`:
+
+```bash
+uv run python packaging/make_bathroom_image.py
+```
+
 ## Release
 
 O workflow `.github/workflows/package.yml` roda em PRs e pushes que mexem em `src/`, `packaging/` ou dependências. Para publicar:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-O job de release confere se a tag (`v0.2.0`) bate com `__version__` (`0.2.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário e o `SHA256SUMS`.
+O job de release confere se a tag (`v0.3.0`) bate com `__version__` (`0.3.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário e o `SHA256SUMS`.

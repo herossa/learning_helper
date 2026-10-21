@@ -1,20 +1,25 @@
 from __future__ import annotations
 
+import logging
 import tkinter as tk
 from datetime import datetime, timezone
 
 import customtkinter
 from screeninfo import get_monitors
 
+from learning_helper import reminders
 from learning_helper.adaptive.engine import AdaptiveEngine
 from learning_helper.adaptive.models import ChallengeSpec
 from learning_helper.challenges.registry import build_challenge
-from learning_helper.config import ADULT_SHORTCUT, RuntimeConfig
+from learning_helper.config import ADULT_SHORTCUT, BATHROOM_DEFER_SECONDS, RuntimeConfig
+from learning_helper.overlay.bathroom import BathroomPanel
 from learning_helper.overlay.geometry import format_geometry
 from learning_helper.overlay.host import ChallengePanel
 
 PANEL_RELWIDTH = 0.62
 PANEL_RELHEIGHT = 0.58
+
+LOGGER = logging.getLogger(__name__)
 
 
 def get_primary_monitor():
@@ -43,6 +48,9 @@ class OverlayApp(customtkinter.CTk):
         self._panel: ChallengePanel | None = None
         self._showing = False
         self._job: str | None = None
+        self._bathroom_panel: BathroomPanel | None = None
+        self._bathroom_visible = False
+        self._bathroom_job: str | None = None
 
         customtkinter.set_appearance_mode("light")
         self.monitor = get_primary_monitor()
@@ -63,6 +71,7 @@ class OverlayApp(customtkinter.CTk):
             close_btn.place(x=10, y=10)
 
         self.after(200, self._show_challenge)
+        self._schedule_bathroom()
 
     def _apply_geometry(self) -> None:
         if self.monitor is None:
@@ -99,6 +108,10 @@ class OverlayApp(customtkinter.CTk):
         self._job = self.after(max(delay, 200), self._show_challenge)
 
     def _show_challenge(self) -> None:
+        if self._bathroom_visible:
+            # O lembrete está na tela: espera ele terminar.
+            self._job = self.after(BATHROOM_DEFER_SECONDS * 1000, self._show_challenge)
+            return
         if self._showing:
             return
         if self.engine.is_paused():
@@ -129,6 +142,66 @@ class OverlayApp(customtkinter.CTk):
         self._showing = False
         self.withdraw()
 
+    def _schedule_bathroom(self, delay_seconds: int | None = None) -> None:
+        if self._bathroom_job is not None:
+            self.after_cancel(self._bathroom_job)
+            self._bathroom_job = None
+        profile = self.engine.profile()
+        if not profile.bathroom_reminder_enabled:
+            return
+        if delay_seconds is None:
+            delay_seconds = reminders.seconds_until_next(
+                profile.last_bathroom_reminder_at,
+                datetime.now(timezone.utc),
+                self.config.bathroom_interval,
+            )
+        self._bathroom_job = self.after(
+            max(int(delay_seconds * 1000), 200), self._show_bathroom
+        )
+
+    def _show_bathroom(self) -> None:
+        self._bathroom_job = None
+        if self._bathroom_visible:
+            return
+        if not self.engine.profile().bathroom_reminder_enabled:
+            return
+        if self.engine.is_paused() or self._showing:
+            # Pausa do adulto ou desafio na tela: tenta de novo em seguida.
+            self._schedule_bathroom(BATHROOM_DEFER_SECONDS)
+            return
+        self._bathroom_visible = True
+        self.engine.record_bathroom_reminder()
+        LOGGER.info(
+            "Lembrete de banheiro exibido por %s s", self.config.bathroom_duration
+        )
+        self._bathroom_panel = BathroomPanel(
+            self,
+            seconds=self.config.bathroom_duration,
+            on_finished=self._hide_bathroom,
+        )
+        self._bathroom_panel.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+            relwidth=PANEL_RELWIDTH,
+            relheight=PANEL_RELHEIGHT,
+        )
+        self._apply_geometry()
+        self.deiconify()
+        self._raise_above()
+        self.focus_force()
+        self.after(50, self._raise_above)
+
+    def _hide_bathroom(self) -> None:
+        if self._bathroom_panel is not None:
+            self._bathroom_panel.cancel()
+            self._bathroom_panel.destroy()
+            self._bathroom_panel = None
+        self._bathroom_visible = False
+        if not self._showing:
+            self.withdraw()
+        self._schedule_bathroom()
+
     def _on_answer(self, spec: ChallengeSpec, given_answer: str) -> None:
         if not self._showing:
             return
@@ -137,6 +210,11 @@ class OverlayApp(customtkinter.CTk):
         self._schedule_next()
 
     def _on_adult_pause(self) -> None:
+        if self._bathroom_visible:
+            self._hide_bathroom()
+            self.engine.pause_for_adult(self.config.adult_pause_seconds)
+            self._schedule_next()
+            return
         if not self._showing:
             return
         self.engine.pause_for_adult(self.config.adult_pause_seconds)

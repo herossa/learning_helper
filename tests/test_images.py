@@ -1,4 +1,9 @@
-from learning_helper.overlay.images import color_swatch, rgb_to_hex
+from learning_helper.overlay.images import (
+    bathroom_image_path,
+    color_swatch,
+    load_bathroom_image,
+    rgb_to_hex,
+)
 
 
 def test_rgb_to_hex() -> None:
@@ -10,3 +15,12 @@ def test_color_swatch_size_and_pixels() -> None:
     assert image.size == (5, 7)
     assert image.getpixel((0, 0)) == (12, 34, 56)
     assert image.getpixel((4, 6)) == (12, 34, 56)
+
+
+def test_bathroom_image_exists_and_loads() -> None:
+    path = bathroom_image_path()
+    assert path.is_file()
+    image = load_bathroom_image()
+    assert image.size == (512, 512)
+    assert image.mode == "RGBA"
+

@@ -88,6 +88,12 @@ class AdaptiveEngine:
         profile.adult_pause_until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
         self.store.save_profile(profile)
 
+    def record_bathroom_reminder(self, now: datetime | None = None) -> None:
+        """Marca que o lembrete de banheiro apareceu agora."""
+        profile = self.profile()
+        profile.last_bathroom_reminder_at = now or datetime.now(timezone.utc)
+        self.store.save_profile(profile)
+
     def is_paused(self, now: datetime | None = None) -> bool:
         profile = self.profile()
         if profile.adult_pause_until is None:

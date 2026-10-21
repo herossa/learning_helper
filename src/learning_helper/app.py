@@ -55,6 +55,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Remove a inicialização automática do usuário (Linux).",
     )
+    parser.add_argument(
+        "--enable-bathroom-reminder",
+        action="store_true",
+        help="Liga o lembrete de banheiro (padrão: ligado).",
+    )
+    parser.add_argument(
+        "--disable-bathroom-reminder",
+        action="store_true",
+        help="Desliga o lembrete de banheiro.",
+    )
     return parser.parse_args(argv)
 
 
@@ -82,6 +92,11 @@ def self_check() -> int:
         for name in ("questions", "reading"):
             if not load_bank(name):
                 raise RuntimeError(f"banco {name}.json vazio")
+        from learning_helper.overlay.images import load_bathroom_image
+
+        image = load_bathroom_image()
+        if image.width <= 0 or image.height <= 0:
+            raise RuntimeError("bathroom.png inválido")
         with tempfile.TemporaryDirectory(prefix="learning-helper-check-") as tmp:
             store = Store(Path(tmp) / "check.db")
             try:
@@ -115,6 +130,24 @@ def _handle_autostart(args: argparse.Namespace) -> int | None:
     return 0
 
 
+def _handle_bathroom_preference(args: argparse.Namespace) -> int | None:
+    if not (args.enable_bathroom_reminder or args.disable_bathroom_reminder):
+        return None
+    store = Store(Path(args.db) if args.db else default_db_path())
+    enabled = args.enable_bathroom_reminder and not args.disable_bathroom_reminder
+    try:
+        profile = store.get_profile()
+        profile.bathroom_reminder_enabled = enabled
+        store.save_profile(profile)
+    finally:
+        store.close()
+    if enabled:
+        print("Lembrete de banheiro habilitado.")
+    else:
+        print("Lembrete de banheiro desabilitado.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     if args.self_check:
@@ -123,6 +156,10 @@ def main(argv: list[str] | None = None) -> int:
     autostart_result = _handle_autostart(args)
     if autostart_result is not None:
         return autostart_result
+
+    bathroom_result = _handle_bathroom_preference(args)
+    if bathroom_result is not None:
+        return bathroom_result
 
     log_path = setup_logging()
     LOGGER.info("Iniciando learning-helper %s (log: %s)", __version__, log_path)

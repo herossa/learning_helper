@@ -25,6 +25,10 @@ a = Analysis(
             str(SRC / "learning_helper" / "challenges" / "banks"),
             "learning_helper/challenges/banks",
         ),
+        (
+            str(SRC / "learning_helper" / "overlay" / "bathroom.png"),
+            "learning_helper/overlay",
+        ),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
