@@ -41,6 +41,8 @@ DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 rm -rf "$TARGET"
 rm -f "$BIN_DIR/learning-helper"
 rm -f "$APPS_DIR/learning-helper.desktop"
+rm -f "$APPS_DIR/learning-helper-settings.desktop"
+rm -f "$APPS_DIR/learning-helper-stats.desktop"
 rm -f "$ICON_DIR/learning-helper.png"
 rm -f "$CONFIG_HOME/autostart/learning-helper.desktop"
 

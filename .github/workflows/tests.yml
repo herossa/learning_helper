@@ -25,4 +25,4 @@ jobs:
         run: uv build --wheel
       - name: Validar arquivos de dados no wheel
         if: runner.os == 'Windows'
-        run: uv run python -c "import glob, zipfile; z = zipfile.ZipFile(glob.glob('dist/*.whl')[0]); names = z.namelist(); assert any(n.endswith('schema.sql') for n in names), names; assert any(n.endswith('banks/questions.json') for n in names), names; assert any(n.endswith('overlay/bathroom.png') for n in names), names; print('wheel ok')"
+        run: uv run python -c "import glob, zipfile; z = zipfile.ZipFile(glob.glob('dist/*.whl')[0]); names = z.namelist(); assert any(n.endswith('schema.sql') for n in names), names; assert any(n.endswith('banks/questions.json') for n in names), names; assert any(n.endswith('overlay/bathroom.png') for n in names), names; assert any(n.endswith('stats/app.py') for n in names), names; print('wheel ok')"

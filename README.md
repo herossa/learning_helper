@@ -4,6 +4,8 @@ App de fundo que, de tempos em tempos, cobre a tela do computador com um desafio
 
 - 5 módulos: cores, contas, problemas, perguntas e leitura
 - Intervalo adaptativo entre 1 e 5 minutos, ajustado pelas respostas
+- Tela de configurações na primeira execução e depois pelo atalho/CLI
+- Estatísticas no navegador (tentativas, acertos, níveis e evolução)
 - Lembrete de banheiro a cada 30 minutos, bloqueando a tela por 1 minuto
 - Instalação por usuário, sem root, no Windows e no Linux
 - Dados guardados só na máquina, em SQLite
@@ -30,12 +32,12 @@ O instalador:
 
 - instala em `%LOCALAPPDATA%\Programs\LearningHelper` por padrão;
 - oferece a opção de instalar para todos os usuários (requer administrador);
-- cria atalho no menu Iniciar e, se você quiser, na área de trabalho;
+- cria atalhos no menu Iniciar para o app, **Configurações** e **Estatísticas**, e, se você quiser, na área de trabalho;
 - pode iniciar junto com o Windows, **somente para o usuário atual** (caixa marcada por padrão, pode ser desmarcada).
 
 Para desinstalar, use **Configurações → Aplicativos → Learning Helper** (ou o atalho "Desinstalar" no menu Iniciar). O banco e os logs em `%LOCALAPPDATA%\learning_helper` são mantidos; apague essa pasta manualmente para remover tudo.
 
-Para habilitar ou desabilitar o autostart depois, pressione `Win+R`, digite `shell:startup` e adicione/remova o atalho "Learning Helper" dessa pasta.
+Para habilitar ou desabilitar o autostart depois, pressione `Win+R`, digite `shell:startup` e adicione/remova o atalho "Learning Helper" dessa pasta. As demais opções ficam no atalho **Configurações do Learning Helper**.
 
 ### Linux (x86_64)
 
@@ -67,7 +69,7 @@ cd LearningHelper-<versão>
 ./install-user.sh --prefix ~/opt   # outro prefixo de instalação
 ```
 
-O instalador copia o app para `~/.local/opt/learning-helper`, cria o comando `~/.local/bin/learning-helper`, o atalho no menu de aplicativos e o ícone. Adicione `~/.local/bin` ao `PATH` se ainda não estiver. Depois de instalar, a pasta extraída pode ser apagada.
+O instalador copia o app para `~/.local/opt/learning-helper`, cria o comando `~/.local/bin/learning-helper`, os atalhos **Learning Helper**, **Configurações** e **Estatísticas** no menu de aplicativos e o ícone. O atalho principal também oferece ações rápidas de configurações e estatísticas. Adicione `~/.local/bin` ao `PATH` se ainda não estiver. Depois de instalar, a pasta extraída pode ser apagada.
 
 Desinstalar (preserva banco e logs):
 
@@ -93,7 +95,9 @@ Para alternar o autostart depois:
 
 ## Como funciona
 
-O intervalo é adaptativo: entre **1 e 5 minutos** (limites e passo em `src/learning_helper/config.py`). Começa em **3 minutos**; cada resposta certa soma 30 segundos e cada resposta errada subtrai 30 segundos, sempre respeitando os limites. Depois de responder há um feedback curto ("Certo!" ou "Quase! Olhe com calma da próxima vez.") e o computador é liberado.
+O intervalo é adaptativo: por padrão, entre **1 e 5 minutos**, começando em **3 minutos**; cada resposta certa soma 30 segundos e cada resposta errada subtrai 30 segundos, sempre respeitando os limites. Esses valores, os limiares de nível e o feedback são configuráveis. Depois de responder há um feedback curto ("Certo!" ou "Quase! Olhe com calma da próxima vez.") e o computador é liberado.
+
+Na **primeira execução**, a tela de configurações aparece antes de qualquer desafio. O primeiro desafio só é agendado depois do intervalo configurado (3 minutos por padrão); fechar a tela sem salvar usa os padrões e marca a configuração como concluída.
 
 Módulos, nesta ordem, desbloqueados pela taxa de acerto:
 
@@ -105,12 +109,46 @@ Módulos, nesta ordem, desbloqueados pela taxa de acerto:
 
 Os problemas usam as mesmas operações de contas (soma, subtração e multiplicação, conforme o nível), mas em histórias curtas com nomes e objetos sorteados. Nunca aparecem números negativos: na subtração o total é sempre maior ou igual ao que sai, e as alternativas erradas também são sempre não negativas.
 
-Começa só com cores, no nível 1. A cada 10 tentativas de um módulo:
+Começa só com cores, no nível 1. A cada 10 tentativas de um módulo (valor configurável):
 
 - ≥ 80% de acerto: sobe o nível (máximo 5); se esse for o módulo mais novo liberado, desbloqueia o seguinte
 - ≤ 40% de acerto: desce o nível (mínimo 1); módulo já aberto não some
 
+Os limiares e o nível máximo também podem ser mudados em Configurações. Módulos desativados não são escolhidos e são pulados no desbloqueio; o progresso deles fica guardado para quando forem religados.
+
 Cada resposta da criança é gravada em SQLite: teste (`module_id`), enunciado, opções, gabarito e o que foi respondido.
+
+## Configurações
+
+A tela de configurações aparece automaticamente na primeira execução e pode ser aberta depois de duas formas:
+
+- atalho **Configurações do Learning Helper** no menu Iniciar (Windows) ou no menu de aplicativos (Linux);
+- comando `learning-helper --settings` (ou `uv run python -m learning_helper --settings` no código-fonte).
+
+O que pode ser ajustado:
+
+- intervalo inicial, mínimo, máximo e passo por resposta;
+- janela de avaliação, limiares de desbloqueio/nível e nível máximo;
+- duração do feedback;
+- duração da pausa do adulto;
+- lembrete de banheiro (ligado/desligado, intervalo e duração);
+- módulos ativos (Cores, Contas, Problemas, Perguntas e Leitura);
+- autostart no Linux.
+
+A seção **Dados** mostra o caminho do banco e abre a pasta onde ficam o banco e os logs. As mudanças valem no próximo início do app (com exceção do intervalo inicial, aplicado ao salvar a primeira configuração de um perfil novo). Fechar a janela no modo normal cancela; **Restaurar padrões** preenche os campos com os valores originais. Desativar um módulo não apaga níveis nem tentativas.
+
+## Estatísticas
+
+O atalho **Estatísticas do Learning Helper** (ou `learning-helper --stats`) abre um painel no navegador, servido localmente:
+
+- indicadores de tentativas, acertos, precisão e dias ativos;
+- tentativas e precisão por dia;
+- resumo por módulo, com nível atual e status (liberado, bloqueado ou desativado);
+- precisão por nível;
+- últimas 100 tentativas, com enunciado, resposta e gabarito;
+- filtros de período (7, 30, 90 dias ou tudo) e de módulos.
+
+O painel abre uma janela pequena com **Encerrar**; fechá-la desliga o servidor local. A leitura é feita em modo somente leitura, então ver as estatísticas não altera níveis, tentativas ou configurações. O Streamlit vai incluído nos instaladores.
 
 ## Atalho do adulto
 
@@ -125,7 +163,7 @@ A cada **30 minutos** aparece um aviso de banheiro que bloqueia a tela por **1 m
 - Durante a pausa do adulto, o lembrete também fica em espera.
 - `Control+Alt+Shift+P` fecha o lembrete na hora e mantém a pausa de 30 minutos.
 
-O lembrete vem **ligado** por padrão. Para desligar (ou religar):
+O lembrete vem **ligado** por padrão e o intervalo/duração podem ser mudados em Configurações. Para desligar (ou religar) pelo terminal:
 
 ```bash
 learning-helper --disable-bathroom-reminder
@@ -144,6 +182,8 @@ Logs (rotativos, até 1 MB + 2 backups):
 - Linux: `~/.local/share/learning_helper/app.log`
 - Windows: `%LOCALAPPDATA%\learning_helper\app.log`
 
+O painel de estatísticas grava a saída do servidor local em `stats.log`, na mesma pasta.
+
 Na mesma pasta há um `app.lock`, usado para impedir duas cópias do app ao mesmo tempo. Outro caminho para o banco:
 
 ```bash
@@ -155,7 +195,8 @@ uv run python -m learning_helper --db /caminho/arquivo.db
 - **AppImage: "Permission denied"** — o download não mantém a permissão de execução; rode `chmod +x LearningHelper-<versão>-x86_64.AppImage`.
 - **AppImage não abre por falta de FUSE** — rode com `--appimage-extract-and-run`.
 - **Nada acontece ao abrir o app de novo** — é a trava de instância única: a segunda cópia detecta o `app.lock` e encerra sem abrir outra janela.
-- **O overlay não aparece** — pode ser a pausa do adulto ativa (30 minutos) ou a instância antiga ainda rodando.
+- **O overlay não aparece** — pode ser a pausa do adulto ativa (30 minutos), o primeiro intervalo ainda contando ou a instância antiga ainda rodando.
+- **As estatísticas não abrem** — veja o `stats.log` na mesma pasta; o servidor usa uma porta local aleatória e o navegador padrão.
 - **Windows: aviso do SmartScreen** — o instalador não é assinado; use **Mais informações → Executar assim mesmo**.
 - **Erros silenciosos** — veja o `app.log` em `Dados locais` acima.
 
@@ -195,7 +236,9 @@ uv run python -m learning_helper --debug
 
 ```text
 --version                     mostra a versão e sai
---self-check                  valida recursos empacotados (schema, bancos e imagem) e sai
+--self-check                  valida recursos empacotados (schema, bancos, imagem e Streamlit) e sai
+--settings                    abre a tela de configuração e sai
+--stats                       abre as estatísticas no navegador
 --debug                       intervalo curto e botão de fechar no overlay
 --db CAMINHO                  usa outro arquivo SQLite
 --enable-autostart            inicia com o usuário atual (Linux)
@@ -212,7 +255,7 @@ No Windows o autostart é gerenciado pelo instalador; as duas opções de autost
 uv run pytest
 ```
 
-Os testes cobrem o motor adaptativo, os geradores de desafio, o SQLite, a escolha de diretório/geometria por plataforma, o CLI, o autostart e a trava de instância. A UI Tk fica de fora da suíte por padrão; para um teste de fumaça da janela (precisa de desktop), rode:
+Os testes cobrem o motor adaptativo, os geradores de desafio, o SQLite e a migração de configurações, a escolha de diretório/geometria por plataforma, o CLI, o autostart, a trava de instância, as consultas de estatísticas e o painel Streamlit (via `AppTest`). A UI Tk fica de fora da suíte por padrão; para os testes de fumaça da janela e da tela de configurações (precisam de desktop), rode:
 
 ```bash
 RUN_GUI_TESTS=1 uv run pytest tests/test_overlay_smoke.py
@@ -224,14 +267,16 @@ O CI (GitHub Actions) roda a suíte em Linux e Windows, e o workflow `package` v
 
 ```text
 src/learning_helper/
-├── app.py               # CLI, logging, self-check e instância única
+├── app.py               # CLI, logging, self-check, primeira execução e instância única
+├── settings.py          # preferências, validação e padrões
 ├── autostart.py         # entrada .desktop por usuário (Linux)
 ├── single_instance.py   # trava de arquivo multiplataforma
 ├── reminders.py         # cálculo do lembrete de banheiro (sem Tk)
-├── config.py            # intervalos, níveis e limites
+├── config.py            # constantes padrão e configuração de execução
 ├── adaptive/            # motor adaptativo (níveis, desbloqueio, intervalo)
 ├── challenges/          # geradores e bancos JSON (perguntas, leitura)
-├── overlay/             # UI Tk/customtkinter e geometria por plataforma
+├── overlay/             # UI Tk/customtkinter, configurações e geometria
+├── stats/               # consultas somente leitura + painel Streamlit
 └── persistence/         # SQLite e schema.sql
 packaging/               # PyInstaller, Inno Setup, AppImage, tar.gz e ícone
 tests/
@@ -248,13 +293,13 @@ uv sync --frozen --group dev
 uv run pyinstaller packaging/learning-helper.spec --noconfirm
 
 # AppImage (precisa do appimagetool no PATH ou em APPIMAGETOOL)
-APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.3.0
+APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.4.0
 
 # pacote por usuário com install/uninstall
-packaging/linux/build-user-tarball.sh 0.3.0
+packaging/linux/build-user-tarball.sh 0.4.0
 
 # teste de instalação/desinstalação em HOME temporário
-packaging/linux/test-user-install.sh dist/LearningHelper-0.3.0-linux-x86_64.tar.gz
+packaging/linux/test-user-install.sh dist/LearningHelper-0.4.0-linux-x86_64.tar.gz
 ```
 
 Saídas em `dist/`: `LearningHelper-<versão>-x86_64.AppImage` e `LearningHelper-<versão>-linux-x86_64.tar.gz`.
@@ -264,7 +309,7 @@ Se o `appimagetool` for o próprio AppImage, rode:
 ```bash
 APPIMAGETOOL=./appimagetool-x86_64.AppImage \
 APPIMAGETOOL_ARGS=--appimage-extract-and-run \
-packaging/linux/build-appimage.sh 0.3.0
+packaging/linux/build-appimage.sh 0.4.0
 ```
 
 ### Windows
@@ -297,8 +342,8 @@ uv run python packaging/make_bathroom_image.py
 O workflow `.github/workflows/package.yml` roda em PRs e pushes que mexem em `src/`, `packaging/` ou dependências. Para publicar:
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
-O job de release confere se a tag (`v0.3.0`) bate com `__version__` (`0.3.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário e o `SHA256SUMS`.
+O job de release confere se a tag (`v0.4.0`) bate com `__version__` (`0.4.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário e o `SHA256SUMS`.

@@ -39,6 +39,8 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdi
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\learning-helper.exe"
+Name: "{group}\Configurações do {#AppName}"; Filename: "{app}\learning-helper.exe"; Parameters: "--settings"
+Name: "{group}\Estatísticas do {#AppName}"; Filename: "{app}\learning-helper.exe"; Parameters: "--stats"
 Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\learning-helper.exe"; Tasks: desktopicon
 Name: "{userstartup}\{#AppName}"; Filename: "{app}\learning-helper.exe"; Tasks: autostart

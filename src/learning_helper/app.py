@@ -57,6 +57,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Abre as estatísticas no navegador.",
+    )
+    parser.add_argument(
+        "--stats-server",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--stats-port",
+        type=int,
+        default=8501,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
         "--enable-autostart",
         action="store_true",
         help="Inicia junto com o usuário atual (Linux).",
@@ -108,6 +124,23 @@ def self_check() -> int:
         image = load_bathroom_image()
         if image.width <= 0 or image.height <= 0:
             raise RuntimeError("bathroom.png inválido")
+
+        import altair
+        import pandas
+        import streamlit
+
+        static = Path(streamlit.__file__).with_name("static")
+        if not static.is_dir():
+            raise RuntimeError("assets estáticos do Streamlit não encontrados")
+        # O painel usa pandas e o Streamlit usa Altair para os gráficos; o
+        # schema do Altair é um arquivo de dados que o PyInstaller pode perder.
+        altair.Chart(
+            pandas.DataFrame({"x": [1], "y": [2]})
+        ).mark_bar().encode(x="x", y="y").to_dict()
+        from learning_helper.stats.server import stats_app_path
+
+        if not stats_app_path().is_file():
+            raise RuntimeError("app.py das estatísticas não encontrado")
 
         with tempfile.TemporaryDirectory(prefix="learning-helper-check-") as tmp:
             store = Store(Path(tmp) / "check.db")
@@ -215,6 +248,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     if args.self_check:
         return self_check()
+
+    if args.stats_server:
+        from learning_helper.stats.server import run_streamlit
+
+        return run_streamlit(_db_path(args), args.stats_port)
+    if args.stats:
+        from learning_helper.stats.launcher import run_stats
+
+        return run_stats(_db_path(args))
 
     autostart_result = _handle_autostart(args)
     if autostart_result is not None:

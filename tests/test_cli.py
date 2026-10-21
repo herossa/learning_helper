@@ -86,10 +86,18 @@ def test_bathroom_flags_persist_preference(tmp_path: Path) -> None:
 
 
 
-def test_parse_args_accepts_settings() -> None:
-    args = parse_args(["--settings"])
+def test_parse_args_accepts_settings_and_stats() -> None:
+    args = parse_args(["--settings", "--stats"])
     assert args.settings is True
-    assert args.first_run is False
+    assert args.stats is True
+    assert args.stats_server is False
+    assert args.stats_port == 8501
+
+
+def test_parse_args_accepts_hidden_stats_server_flags() -> None:
+    args = parse_args(["--stats-server", "--stats-port", "9000"])
+    assert args.stats_server is True
+    assert args.stats_port == 9000
 
 
 def test_run_opens_settings_on_first_run(tmp_path, monkeypatch) -> None:

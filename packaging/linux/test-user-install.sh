@@ -17,10 +17,16 @@ HOME="$WORK/home" "$PACKAGE/install-user.sh" --autostart
 HOME="$WORK/home" "$WORK/home/.local/bin/learning-helper" --self-check
 test -f "$WORK/home/.config/autostart/learning-helper.desktop"
 test -f "$WORK/home/.local/share/applications/learning-helper.desktop"
+test -f "$WORK/home/.local/share/applications/learning-helper-settings.desktop"
+test -f "$WORK/home/.local/share/applications/learning-helper-stats.desktop"
+grep -q -- "--settings" "$WORK/home/.local/share/applications/learning-helper-settings.desktop"
+grep -q -- "--stats" "$WORK/home/.local/share/applications/learning-helper-stats.desktop"
 test -x "$WORK/home/.local/opt/learning-helper/learning-helper"
 
 HOME="$WORK/home" "$WORK/home/.local/bin/learning-helper-uninstall"
 test ! -e "$WORK/home/.local/opt/learning-helper"
 test ! -e "$WORK/home/.config/autostart/learning-helper.desktop"
 test ! -e "$WORK/home/.local/share/applications/learning-helper.desktop"
+test ! -e "$WORK/home/.local/share/applications/learning-helper-settings.desktop"
+test ! -e "$WORK/home/.local/share/applications/learning-helper-stats.desktop"
 echo "install/uninstall por usuário: ok"
