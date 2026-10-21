@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
+from learning_helper import lifecycle
 from learning_helper.persistence.db import data_dir
 
 HEALTH_TIMEOUT_SECONDS = 25
@@ -95,7 +96,17 @@ def _serve_window(child: subprocess.Popen, url: str) -> None:
     def stop() -> None:
         _stop_and_close(root, child)
 
+    def poll_quit() -> None:
+        if lifecycle.quit_requested():
+            _stop_and_close(root, child)
+            return
+        try:
+            root.after(500, poll_quit)
+        except tk.TclError:
+            pass
+
     root.protocol("WM_DELETE_WINDOW", stop)
+    root.after(500, poll_quit)
     root.mainloop()
 
 

@@ -35,6 +35,7 @@ hiddenimports += collect_submodules("screeninfo")
 # PyInstaller não encontra os imports dele na análise estática. Sem isso o
 # painel quebra com "cannot import name 'data'" na versão empacotada.
 hiddenimports += collect_submodules("learning_helper.stats")
+hiddenimports += collect_submodules("learning_helper.updates")
 
 # O Streamlit carrega o frontend, os schemas do Altair e os assets do pydeck
 # como arquivos de dados. Sem eles o servidor sobe e a página fica em branco.

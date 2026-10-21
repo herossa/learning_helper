@@ -8,11 +8,12 @@ App de fundo que, de tempos em tempos, cobre a tela do computador com um desafio
 - Estatísticas no navegador (tentativas, acertos, níveis e evolução)
 - Lembrete de banheiro a cada 30 minutos, bloqueando a tela por 1 minuto
 - Instalação por usuário, sem root, no Windows e no Linux
+- Atualização silenciosa pelo GitHub Releases, com verificação SHA-256
 - Dados guardados só na máquina, em SQLite
 
 ## Instalação
 
-Os pacotes ficam nas [releases do GitHub](https://github.com/herossa/learning_helper/releases). Todos instalam **apenas para o usuário atual**, sem pedir senha de administrador, e **preservam o banco de dados ao desinstalar**.
+Os pacotes ficam nas [releases do GitHub](https://github.com/herossa/learning_helper/releases). Todos instalam **apenas para o usuário atual** por padrão, sem pedir senha de administrador, e **preservam o banco de dados ao desinstalar**. Versões instaladas também se atualizam sozinhas: veja [Atualizações](#atualizações).
 
 Cada release publica também um `SHA256SUMS` para conferir a integridade dos arquivos baixados:
 
@@ -33,9 +34,12 @@ O instalador:
 - instala em `%LOCALAPPDATA%\Programs\LearningHelper` por padrão;
 - oferece a opção de instalar para todos os usuários (requer administrador);
 - cria atalhos no menu Iniciar para o app, **Configurações** e **Estatísticas**, e, se você quiser, na área de trabalho;
-- pode iniciar junto com o Windows, **somente para o usuário atual** (caixa marcada por padrão, pode ser desmarcada).
+- pode iniciar junto com o Windows, **somente para o usuário atual** (caixa marcada por padrão, pode ser desmarcada);
+- ao atualizar, encerra o app, as configurações e o servidor de estatísticas antes de substituir os arquivos.
 
-Para desinstalar, use **Configurações → Aplicativos → Learning Helper** (ou o atalho "Desinstalar" no menu Iniciar). O banco e os logs em `%LOCALAPPDATA%\learning_helper` são mantidos; apague essa pasta manualmente para remover tudo.
+Para desinstalar, use **Configurações → Aplicativos → Learning Helper** (ou o atalho "Desinstalar" no menu Iniciar). O desinstalador encerra o app, as configurações e o servidor de estatísticas que estiverem abertos. O banco e os logs em `%LOCALAPPDATA%\learning_helper` são mantidos; apague essa pasta manualmente para remover tudo.
+
+Se você escolheu instalar **para todos os usuários** (opção que pede administrador), a atualização automática também funciona, mas o Windows pode pedir elevação (UAC) antes de instalar. A instalação padrão, por usuário, atualiza sem nenhuma janela.
 
 Para habilitar ou desabilitar o autostart depois, pressione `Win+R`, digite `shell:startup` e adicione/remova o atalho "Learning Helper" dessa pasta. As demais opções ficam no atalho **Configurações do Learning Helper**.
 
@@ -71,7 +75,7 @@ cd LearningHelper-<versão>
 
 O instalador copia o app para `~/.local/opt/learning-helper`, cria o comando `~/.local/bin/learning-helper`, os atalhos **Learning Helper**, **Configurações** e **Estatísticas** no menu de aplicativos e o ícone. O atalho principal também oferece ações rápidas de configurações e estatísticas. Adicione `~/.local/bin` ao `PATH` se ainda não estiver. Depois de instalar, a pasta extraída pode ser apagada.
 
-Desinstalar (preserva banco e logs):
+Desinstalar (preserva banco e logs e encerra o app, as configurações e o servidor de estatísticas que estiverem abertos):
 
 ```bash
 ~/.local/bin/learning-helper-uninstall
@@ -133,9 +137,48 @@ O que pode ser ajustado:
 - duração da pausa do adulto;
 - lembrete de banheiro (ligado/desligado, intervalo e duração);
 - módulos ativos (Cores, Contas, Problemas, Perguntas e Leitura);
+- verificação de atualizações ao iniciar (ligada por padrão);
 - autostart no Linux.
 
 A seção **Dados** mostra o caminho do banco e abre a pasta onde ficam o banco e os logs. As mudanças valem no próximo início do app (com exceção do intervalo inicial, aplicado ao salvar a primeira configuração de um perfil novo). Fechar a janela no modo normal cancela; **Restaurar padrões** preenche os campos com os valores originais. Desativar um módulo não apaga níveis nem tentativas.
+
+## Atualizações
+
+Builds instalados consultam o `latest.json` da release mais recente **uma vez ao iniciar** (se a opção estiver ligada) e também pelo botão **Verificar atualizações agora** em Configurações. Não há verificação periódica enquanto o app está aberto.
+
+Quando há uma versão nova:
+
+1. o pacote adequado é baixado em segundo plano para a pasta de dados;
+2. o SHA-256 publicado no manifesto é conferido antes de qualquer instalação;
+3. a atualização só é aplicada quando o overlay está ocioso, ou seja, sem desafio nem lembrete de banheiro na tela;
+4. o app se fecha e a instalação roda **sem janelas** (`/VERYSILENT` no Windows ou o instalador por usuário no Linux);
+5. o app reabre na versão nova.
+
+O banco, os logs e as configurações ficam na pasta de dados e não são tocados pela atualização. No Linux, o updater funciona tanto no **AppImage** (substitui o próprio arquivo) quanto no **tar.gz** (reinstala no mesmo prefixo com `install-user.sh`). No Windows, usa o `Setup.exe` da release.
+
+No botão manual, se o app principal estiver aberto, o download fica pronto e o overlay instala assim que não houver desafio nem lembrete na tela; se o app não estiver aberto, a instalação começa na hora. Assim nunca há dois instaladores ao mesmo tempo.
+
+A instalação padrão por usuário não pede senha. Se o Windows foi instalado para todos os usuários, o UAC pode aparecer na atualização; o restante continua silencioso.
+
+Para desligar a verificação automática, use a opção em **Configurações** ou defina `LEARNING_HELPER_NO_UPDATE=1` no ambiente. O botão manual continua disponível. Em execução a partir do código-fonte, o app apenas informa se há versão nova; ele não se auto-instala.
+
+Se uma instalação falhar três vezes, o app espera 7 dias antes de tentar a mesma versão de novo. **Verificar atualizações agora** ignora esse bloqueio e tenta novamente. O andamento fica em `updates/apply.log` e em `app.log` (veja [Dados locais](#dados-locais)).
+
+### Repositório privado
+
+O endereço padrão do manifesto é `releases/latest/download/latest.json` de `herossa/learning_helper`. Ele só funciona sem login se os assets da release forem públicos. Como este repositório é privado, use uma destas opções:
+
+- defina `LEARNING_HELPER_UPDATE_TOKEN` com um token do GitHub **somente leitura** (fine-grained com *Contents: Read* ou classic com escopo `repo`). O app então consulta a API do GitHub e baixa o manifesto e o pacote autenticados;
+- publique `latest.json` e os pacotes em um endereço público e defina `LEARNING_HELPER_UPDATE_URL` com a URL do manifesto. Nesse caso os assets também precisam ser públicos.
+
+O token/URL precisa estar no ambiente do processo (variável de usuário/sistema ou serviço), não apenas no terminal de onde o app foi aberto. Sem token e com o repositório privado, a verificação falha com uma mensagem pedindo `LEARNING_HELPER_UPDATE_TOKEN`; o app continua funcionando normalmente.
+
+Pelo terminal:
+
+```bash
+learning-helper --check-updates   # consulta o manifesto e informa se há versão nova
+learning-helper --quit            # encerra o app, as configurações e o servidor de estatísticas
+```
 
 ## Estatísticas
 
@@ -184,7 +227,16 @@ Logs (rotativos, até 1 MB + 2 backups):
 
 O painel de estatísticas grava a saída do servidor local em `stats.log`, na mesma pasta.
 
-Na mesma pasta há um `app.lock`, usado para impedir duas cópias do app ao mesmo tempo. Outro caminho para o banco:
+A subpasta `updates/` guarda o que o atualizador precisa:
+
+- `state.json`: última versão pendente, tentativas e bloqueio temporário;
+- `manual.request`: aviso das Configurações para o overlay aplicar um download manual;
+- `apply.log`: saída do instalador ou do script de atualização;
+- `<versão>/`: pacote baixado e conferido por SHA-256.
+
+Ela pode ser apagada a qualquer momento; o app baixa de novo na próxima verificação.
+
+Na mesma pasta há um `app.lock`, usado para impedir duas cópias do app ao mesmo tempo. O arquivo `quit.request` é usado internamente por `--quit`, pelo instalador e pelo desinstalador para encerrar as instâncias abertas; ele expira sozinho. Outro caminho para o banco:
 
 ```bash
 uv run python -m learning_helper --db /caminho/arquivo.db
@@ -198,6 +250,8 @@ uv run python -m learning_helper --db /caminho/arquivo.db
 - **O overlay não aparece** — pode ser a pausa do adulto ativa (30 minutos), o primeiro intervalo ainda contando ou a instância antiga ainda rodando.
 - **As estatísticas não abrem** — veja o `stats.log` na mesma pasta; o servidor usa uma porta local aleatória e o navegador padrão.
 - **Windows: aviso do SmartScreen** — o instalador não é assinado; use **Mais informações → Executar assim mesmo**.
+- **A atualização não instala** — veja `updates/apply.log` e `app.log`. Se tiver falhado três vezes, aguarde o bloqueio de 7 dias ou use **Verificar atualizações agora** em Configurações. Em instalações para todos os usuários, confirme o UAC.
+- **`--quit` não fechou tudo** — confira se as janelas são da mesma instalação/pasta de dados; o comando encerra apenas processos que compartilham o mesmo diretório de dados.
 - **Erros silenciosos** — veja o `app.log` em `Dados locais` acima.
 
 ## Desenvolvimento
@@ -260,9 +314,11 @@ O merge deve ser feito pela interface do GitHub ou por `gh pr merge`. O bloqueio
 
 ```text
 --version                     mostra a versão e sai
---self-check                  valida recursos empacotados (schema, bancos, imagem e Streamlit) e sai
+--self-check                  valida recursos empacotados (schema, bancos, imagem, Streamlit e updater) e sai
 --settings                    abre a tela de configuração e sai
 --stats                       abre as estatísticas no navegador
+--check-updates               consulta o manifesto de atualização e informa se há versão nova
+--quit                        encerra app, configurações e servidor de estatísticas em execução
 --debug                       intervalo curto e botão de fechar no overlay
 --db CAMINHO                  usa outro arquivo SQLite
 --enable-autostart            inicia com o usuário atual (Linux)
@@ -273,13 +329,15 @@ O merge deve ser feito pela interface do GitHub ou por `gh pr merge`. O bloqueio
 
 No Windows o autostart é gerenciado pelo instalador; as duas opções de autostart apenas avisam isso e não alteram nada. As opções do lembrete de banheiro valem em qualquer plataforma e gravam a preferência no banco.
 
+`--check-updates` não baixa nem instala nada: só consulta o `latest.json`. Ele sai com código 0 quando a consulta funciona (mesmo que haja versão nova) e 1 em caso de erro de rede/manifesto.
+
 ### Testes
 
 ```bash
 uv run pytest
 ```
 
-Os testes cobrem o motor adaptativo, os geradores de desafio, o SQLite e a migração de configurações, a escolha de diretório/geometria por plataforma, o CLI, o autostart, a trava de instância, as consultas de estatísticas e o painel Streamlit (via `AppTest`). A UI Tk fica de fora da suíte por padrão; para os testes de fumaça da janela e da tela de configurações (precisam de desktop), rode:
+Os testes cobrem o motor adaptativo, os geradores de desafio, o SQLite e a migração de configurações, a escolha de diretório/geometria por plataforma, o CLI, o autostart, a trava de instância, o manifesto/estado/download do atualizador, a solicitação de encerramento, as consultas de estatísticas e o painel Streamlit (via `AppTest`). A UI Tk fica de fora da suíte por padrão; para os testes de fumaça da janela e da tela de configurações (precisam de desktop), rode:
 
 ```bash
 RUN_GUI_TESTS=1 uv run pytest tests/test_overlay_smoke.py
@@ -293,16 +351,18 @@ O CI (GitHub Actions) roda a suíte em Linux e Windows, e o workflow `package` v
 src/learning_helper/
 ├── app.py               # CLI, logging, self-check, primeira execução e instância única
 ├── settings.py          # preferências, validação e padrões
+├── lifecycle.py         # pedido de encerramento entre app, configurações e estatísticas
 ├── autostart.py         # entrada .desktop por usuário (Linux)
 ├── single_instance.py   # trava de arquivo multiplataforma
 ├── reminders.py         # cálculo do lembrete de banheiro (sem Tk)
 ├── config.py            # constantes padrão e configuração de execução
+├── updates/             # manifesto, download, estado e aplicação de atualizações
 ├── adaptive/            # motor adaptativo (níveis, desbloqueio, intervalo)
 ├── challenges/          # geradores e bancos JSON (perguntas, leitura)
 ├── overlay/             # UI Tk/customtkinter, configurações e geometria
 ├── stats/               # consultas somente leitura + painel Streamlit
 └── persistence/         # SQLite e schema.sql
-packaging/               # PyInstaller, Inno Setup, AppImage, tar.gz e ícone
+packaging/               # PyInstaller, Inno Setup, AppImage, tar.gz, manifesto e ícone
 .githooks/               # hooks locais (bloqueio de push direto na main)
 scripts/                 # ativação dos hooks locais
 .github/                 # workflows de testes, empacotamento e branch-guard
@@ -320,13 +380,13 @@ uv sync --frozen --group dev
 uv run pyinstaller packaging/learning-helper.spec --noconfirm
 
 # AppImage (precisa do appimagetool no PATH ou em APPIMAGETOOL)
-APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.4.0
+APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.5.0
 
 # pacote por usuário com install/uninstall
-packaging/linux/build-user-tarball.sh 0.4.0
+packaging/linux/build-user-tarball.sh 0.5.0
 
 # teste de instalação/desinstalação em HOME temporário
-packaging/linux/test-user-install.sh dist/LearningHelper-0.4.0-linux-x86_64.tar.gz
+packaging/linux/test-user-install.sh dist/LearningHelper-0.5.0-linux-x86_64.tar.gz
 ```
 
 Saídas em `dist/`: `LearningHelper-<versão>-x86_64.AppImage` e `LearningHelper-<versão>-linux-x86_64.tar.gz`.
@@ -336,7 +396,7 @@ Se o `appimagetool` for o próprio AppImage, rode:
 ```bash
 APPIMAGETOOL=./appimagetool-x86_64.AppImage \
 APPIMAGETOOL_ARGS=--appimage-extract-and-run \
-packaging/linux/build-appimage.sh 0.4.0
+packaging/linux/build-appimage.sh 0.5.0
 ```
 
 ### Windows
@@ -369,8 +429,15 @@ uv run python packaging/make_bathroom_image.py
 O workflow `.github/workflows/package.yml` roda em PRs e pushes que mexem em `src/`, `packaging/` ou dependências. Para publicar:
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
-O job de release confere se a tag (`v0.4.0`) bate com `__version__` (`0.4.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário e o `SHA256SUMS`.
+O job de release confere se a tag (`v0.5.0`) bate com `__version__` (`0.5.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário, o `SHA256SUMS` e o **`latest.json`**. O manifesto é gerado por `packaging/make_update_manifest.py` a partir dos próprios artefatos e contém versão, nome, URL e SHA-256 de cada pacote; é dele que o updater lê a release mais recente.
+
+Para testar o manifesto localmente depois de gerar os pacotes:
+
+```bash
+uv run python packaging/make_update_manifest.py \
+  --version 0.5.0 --dist dist --tag v0.5.0
+```

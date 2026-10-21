@@ -58,6 +58,84 @@ def test_parse_args_accepts_bathroom_flags() -> None:
     assert args.disable_bathroom_reminder is True
 
 
+def test_parse_args_accepts_update_and_quit_flags() -> None:
+    args = parse_args(["--check-updates", "--quit"])
+    assert args.check_updates is True
+    assert args.quit is True
+
+
+def test_quit_writes_request_in_data_dir(tmp_path: Path) -> None:
+    result = _run(
+        "--quit",
+        env={"XDG_DATA_HOME": str(tmp_path), "LOCALAPPDATA": str(tmp_path)},
+    )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "learning_helper" / "quit.request").is_file()
+
+
+def _release(version: str):
+    from learning_helper.updates.manifest import Asset, Release
+
+    return Release(
+        version=version,
+        assets={
+            "linux_tarball": Asset(
+                name=f"LearningHelper-{version}-linux-x86_64.tar.gz",
+                url=f"https://example.invalid/{version}.tar.gz",
+                sha256="a" * 64,
+            )
+        },
+    )
+
+
+def test_check_updates_reports_new_version(monkeypatch, capsys) -> None:
+    from learning_helper import app
+    from learning_helper.updates import client, install
+
+    monkeypatch.setattr(client, "fetch_manifest", lambda: _release("0.6.0"))
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+
+    assert app._check_updates() == 0
+    output = capsys.readouterr().out
+    assert "Nova versão disponível: 0.6.0" in output
+    assert "LearningHelper-0.6.0-linux-x86_64.tar.gz" in output
+
+
+def test_check_updates_reports_current_version(monkeypatch, capsys) -> None:
+    from learning_helper import app, __version__
+    from learning_helper.updates import client
+
+    monkeypatch.setattr(client, "fetch_manifest", lambda: _release(__version__))
+
+    assert app._check_updates() == 0
+    assert "mais recente" in capsys.readouterr().out
+
+
+def test_check_updates_reports_unavailable_auto_update(monkeypatch, capsys) -> None:
+    from learning_helper import app
+    from learning_helper.updates import client, install
+
+    monkeypatch.setattr(client, "fetch_manifest", lambda: _release("0.6.0"))
+    monkeypatch.setattr(install, "asset_key", lambda: None)
+
+    assert app._check_updates() == 0
+    assert "não disponível" in capsys.readouterr().out
+
+
+def test_check_updates_returns_error_on_failure(monkeypatch, capsys) -> None:
+    from learning_helper import app
+    from learning_helper.updates import client
+    from learning_helper.updates.manifest import UpdateError
+
+    def fail():
+        raise UpdateError("sem rede")
+
+    monkeypatch.setattr(client, "fetch_manifest", fail)
+
+    assert app._check_updates() == 1
+    assert "sem rede" in capsys.readouterr().err
+
+
 def test_bathroom_flags_persist_preference(tmp_path: Path) -> None:
     db_path = tmp_path / "learning_helper.db"
     env = {"XDG_DATA_HOME": str(tmp_path), "LOCALAPPDATA": str(tmp_path)}

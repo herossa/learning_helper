@@ -87,6 +87,7 @@ class Settings:
     bathroom_interval_seconds: int = BATHROOM_INTERVAL_SECONDS
     bathroom_duration_seconds: int = BATHROOM_DURATION_SECONDS
     enabled_modules: tuple[str, ...] = MODULE_ORDER
+    update_check_on_startup: bool = True
 
     def normalized(self) -> Settings:
         """Aplica limites seguros (defensivo ao ler JSON antigo/adulterado)."""

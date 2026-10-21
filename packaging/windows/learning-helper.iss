@@ -25,7 +25,8 @@ UninstallDisplayIcon={app}\learning-helper.exe
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-CloseApplications=no
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
@@ -33,6 +34,10 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 [Tasks]
 Name: "autostart"; Description: "Iniciar com o Windows (somente este usuário)"; GroupDescription: "Opções:"; Flags: checkedonce
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDescription: "Atalhos:"; Flags: unchecked
+
+[InstallDelete]
+; Remove o bundle antigo para não misturar arquivos de versões diferentes.
+Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
@@ -47,3 +52,37 @@ Name: "{userstartup}\{#AppName}"; Filename: "{app}\learning-helper.exe"; Tasks: 
 
 [Run]
 Filename: "{app}\learning-helper.exe"; Description: "Iniciar o Learning Helper agora"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\learning-helper.exe"; Flags: nowait runasoriginaluser; Check: IsUpdateRestart
+
+[UninstallRun]
+Filename: "{app}\learning-helper.exe"; Parameters: "--quit"; Flags: runhidden waituntilterminated; RunOnceId: "QuitLearningHelper"
+Filename: "{sys}\taskkill.exe"; Parameters: "/IM learning-helper.exe /T /F"; Flags: runhidden waituntilterminated; RunOnceId: "KillLearningHelper"
+
+[Code]
+function IsUpdateRestart: Boolean;
+begin
+  Result := ExpandConstant('{param:UPDATERESTART|0}') = '1';
+end;
+
+procedure StopRunningApp;
+var
+  ResultCode: Integer;
+begin
+  if not FileExists(ExpandConstant('{app}\learning-helper.exe')) then
+    exit;
+  Exec(
+    ExpandConstant('{app}\learning-helper.exe'),
+    '--quit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode
+  );
+  Sleep(1500);
+  Exec(
+    ExpandConstant('{sys}\taskkill.exe'),
+    '/IM learning-helper.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode
+  );
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  StopRunningApp;
+  Result := '';
+end;
