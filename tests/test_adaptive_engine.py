@@ -2,7 +2,16 @@ import random
 
 from learning_helper.adaptive.engine import AdaptiveEngine
 from learning_helper.adaptive.models import ChallengeChoice, ChallengeSpec
-from learning_helper.config import ACCURACY_WINDOW, MAX_LEVEL
+from learning_helper.config import (
+    ACCURACY_WINDOW,
+    INITIAL_INTERVAL_SECONDS,
+    INTERVAL_STEP_SECONDS,
+    MAX_INTERVAL_SECONDS,
+    MAX_LEVEL,
+    MIN_INTERVAL_SECONDS,
+    MODULE_ORDER,
+    RuntimeConfig,
+)
 from learning_helper.persistence.db import Store
 
 
@@ -72,15 +81,62 @@ def test_level_does_not_exceed_max(engine: AdaptiveEngine) -> None:
     assert engine.profile().levels["colors"] == MAX_LEVEL
 
 
-def test_unlock_order_colors_math_questions_reading(engine: AdaptiveEngine) -> None:
+def test_unlock_order_follows_module_order(engine: AdaptiveEngine) -> None:
     _fill(engine, "colors", ACCURACY_WINDOW)
+    assert engine.profile().unlocked_modules[-1] == "math"
     _fill(engine, "math", ACCURACY_WINDOW)
+    assert engine.profile().unlocked_modules[-1] == "problems"
+    _fill(engine, "problems", ACCURACY_WINDOW)
     assert engine.profile().unlocked_modules[-1] == "questions"
     _fill(engine, "questions", ACCURACY_WINDOW)
-    assert engine.profile().unlocked_modules == ["colors", "math", "questions", "reading"]
+    assert engine.profile().unlocked_modules == list(MODULE_ORDER)
 
 
 def test_adult_pause_does_not_insert_attempt(engine: AdaptiveEngine) -> None:
     engine.pause_for_adult(seconds=60)
     assert engine.is_paused()
     assert engine.store.count_attempts() == 0
+
+
+def test_interval_starts_at_initial_value(engine: AdaptiveEngine) -> None:
+    assert engine.next_interval_seconds() == INITIAL_INTERVAL_SECONDS
+
+
+def test_correct_answer_increases_interval(engine: AdaptiveEngine) -> None:
+    engine.record_attempt(_spec(), "a")
+    assert engine.next_interval_seconds() == INITIAL_INTERVAL_SECONDS + INTERVAL_STEP_SECONDS
+
+
+def test_wrong_answer_decreases_interval(engine: AdaptiveEngine) -> None:
+    engine.record_attempt(_spec(), "b")
+    assert engine.next_interval_seconds() == INITIAL_INTERVAL_SECONDS - INTERVAL_STEP_SECONDS
+
+
+def test_interval_never_exceeds_maximum(engine: AdaptiveEngine) -> None:
+    for _ in range(10):
+        engine.record_attempt(_spec(), "a")
+    assert engine.next_interval_seconds() == MAX_INTERVAL_SECONDS
+
+
+def test_interval_never_goes_below_minimum(engine: AdaptiveEngine) -> None:
+    for _ in range(10):
+        engine.record_attempt(_spec(), "b")
+    assert engine.next_interval_seconds() == MIN_INTERVAL_SECONDS
+
+
+def test_interval_persists_between_engines(store: Store) -> None:
+    engine = AdaptiveEngine(store)
+    engine.record_attempt(_spec(), "a")
+    reloaded = AdaptiveEngine(store)
+    assert reloaded.next_interval_seconds() == INITIAL_INTERVAL_SECONDS + INTERVAL_STEP_SECONDS
+
+
+def test_debug_config_keeps_short_fixed_delay() -> None:
+    config = RuntimeConfig(debug=True)
+    assert config.delay_ms(MAX_INTERVAL_SECONDS) == 10_000
+
+
+def test_config_clamps_adaptive_delay() -> None:
+    config = RuntimeConfig()
+    assert config.delay_ms(0) == MIN_INTERVAL_SECONDS * 1000
+    assert config.delay_ms(10_000) == MAX_INTERVAL_SECONDS * 1000

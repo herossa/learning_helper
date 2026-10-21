@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from learning_helper.adaptive.models import Attempt, Profile
-from learning_helper.config import MODULE_ORDER
+from learning_helper.config import INITIAL_INTERVAL_SECONDS, MODULE_ORDER
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
@@ -49,13 +49,27 @@ class Store:
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
         self._ensure_profile()
+        self._migrate_unlocked_modules()
 
     def close(self) -> None:
         self._conn.close()
 
     def _init_schema(self) -> None:
         self._conn.executescript(_schema_sql())
+        self._migrate_profile_columns()
         self._conn.commit()
+
+    def _migrate_profile_columns(self) -> None:
+        columns = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(profile)").fetchall()
+        }
+        if "interval_seconds" not in columns:
+            # Bancos criados antes do intervalo adaptativo: a linha existente
+            # assume o intervalo inicial (3 minutos).
+            self._conn.execute(
+                "ALTER TABLE profile ADD COLUMN interval_seconds "
+                f"INTEGER NOT NULL DEFAULT {int(INITIAL_INTERVAL_SECONDS)}"
+            )
 
     def _ensure_profile(self) -> None:
         row = self._conn.execute("SELECT id FROM profile WHERE id = 1").fetchone()
@@ -63,10 +77,24 @@ class Store:
             profile = Profile.default()
             self.save_profile(profile)
 
+    def _migrate_unlocked_modules(self) -> None:
+        """Perfis antigos recebem `problems` logo depois de `math`."""
+        profile = self.get_profile()
+        unlocked = list(profile.unlocked_modules)
+        if "math" in unlocked and "problems" not in unlocked:
+            unlocked.append("problems")
+
+        ordered = [module for module in MODULE_ORDER if module in unlocked]
+        ordered += [module for module in unlocked if module not in MODULE_ORDER]
+        if ordered != profile.unlocked_modules:
+            profile.unlocked_modules = ordered
+            self.save_profile(profile)
+
     def get_profile(self) -> Profile:
         row = self._conn.execute(
             """
-            SELECT unlocked_modules_json, levels_json, last_interrupt_at, adult_pause_until
+            SELECT unlocked_modules_json, levels_json, last_interrupt_at,
+                   adult_pause_until, interval_seconds
             FROM profile WHERE id = 1
             """
         ).fetchone()
@@ -79,24 +107,27 @@ class Store:
             levels=levels,
             last_interrupt_at=_loads_dt(row["last_interrupt_at"]),
             adult_pause_until=_loads_dt(row["adult_pause_until"]),
+            interval_seconds=int(row["interval_seconds"]),
         )
 
     def save_profile(self, profile: Profile) -> None:
         self._conn.execute(
             """
-            INSERT INTO profile (id, unlocked_modules_json, levels_json, last_interrupt_at, adult_pause_until)
-            VALUES (1, ?, ?, ?, ?)
+            INSERT INTO profile (id, unlocked_modules_json, levels_json, last_interrupt_at, adult_pause_until, interval_seconds)
+            VALUES (1, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 unlocked_modules_json = excluded.unlocked_modules_json,
                 levels_json = excluded.levels_json,
                 last_interrupt_at = excluded.last_interrupt_at,
-                adult_pause_until = excluded.adult_pause_until
+                adult_pause_until = excluded.adult_pause_until,
+                interval_seconds = excluded.interval_seconds
             """,
             (
                 json.dumps(profile.unlocked_modules),
                 json.dumps(profile.levels),
                 _dumps_dt(profile.last_interrupt_at),
                 _dumps_dt(profile.adult_pause_until),
+                profile.interval_seconds,
             ),
         )
         self._conn.commit()

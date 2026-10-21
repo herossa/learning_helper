@@ -3,6 +3,7 @@ import random
 from learning_helper.challenges.banks import load_bank
 from learning_helper.challenges.colors import PRIMARY_COLOR_DATA, build_colors_challenge
 from learning_helper.challenges.math import build_math_challenge
+from learning_helper.challenges.problems import NAMES, build_problems_challenge
 from learning_helper.challenges.questions import build_questions_challenge
 from learning_helper.challenges.reading import build_reading_challenge
 from learning_helper.challenges.registry import build_challenge
@@ -37,6 +38,35 @@ def test_math_result_matches_prompt() -> None:
         assert len(spec.choices) == 4
 
 
+def test_problems_result_matches_prompt() -> None:
+    rng = random.Random(7)
+    for level in range(1, 6):
+        for _ in range(200):
+            spec = build_problems_challenge(level, rng)
+            a = spec.metadata["a"]
+            b = spec.metadata["b"]
+            op = spec.metadata["op"]
+            expected = {"+": a + b, "-": a - b, "*": a * b}[op]
+            assert spec.correct_id == str(expected)
+            assert expected >= 0
+            assert spec.correct_id in spec.choice_ids()
+            assert len(spec.choices) == 4
+            assert len(spec.choice_ids()) == 4
+            assert all(int(choice.id) >= 0 for choice in spec.choices)
+            if op == "-":
+                assert a >= b
+            assert spec.prompt.endswith("?")
+            assert "{" not in spec.prompt and "}" not in spec.prompt
+            assert spec.module_id == "problems"
+
+
+def test_problems_uses_story_text() -> None:
+    spec = build_problems_challenge(1, random.Random(11))
+    assert any(name in spec.prompt for name in NAMES)
+    assert spec.metadata["scenario"]
+    assert spec.metadata["item"]
+
+
 def test_questions_answer_in_options() -> None:
     bank = load_bank("questions")
     assert bank
@@ -55,7 +85,7 @@ def test_reading_answer_in_options() -> None:
 
 def test_registry_builds_all_modules() -> None:
     rng = random.Random(0)
-    for module_id in ("colors", "math", "questions", "reading"):
+    for module_id in ("colors", "math", "problems", "questions", "reading"):
         spec = build_challenge(module_id, 1, rng)
         assert spec.module_id == module_id
         assert spec.correct_id in spec.choice_ids()

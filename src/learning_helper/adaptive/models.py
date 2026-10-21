@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from learning_helper.config import DEFAULT_UNLOCKED, MODULE_ORDER
+from learning_helper.config import DEFAULT_UNLOCKED, INITIAL_INTERVAL_SECONDS, MODULE_ORDER
 
 
 @dataclass(frozen=True)
@@ -46,6 +46,7 @@ class Profile:
     levels: dict[str, int]
     last_interrupt_at: datetime | None = None
     adult_pause_until: datetime | None = None
+    interval_seconds: int = INITIAL_INTERVAL_SECONDS
 
     @classmethod
     def default(cls) -> Profile:

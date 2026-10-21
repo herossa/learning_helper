@@ -68,7 +68,7 @@ class OverlayApp(customtkinter.CTk):
     def _schedule_next(self) -> None:
         if self._job is not None:
             self.after_cancel(self._job)
-        delay = self.config.interval_ms
+        delay = self.config.delay_ms(self.engine.next_interval_seconds())
         pause_until = self.engine.profile().adult_pause_until
         if pause_until is not None:
             remaining_ms = int((pause_until - datetime.now(timezone.utc)).total_seconds() * 1000)

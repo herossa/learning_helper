@@ -6,6 +6,7 @@ from collections.abc import Callable
 from learning_helper.adaptive.models import ChallengeSpec
 from learning_helper.challenges.colors import build_colors_challenge
 from learning_helper.challenges.math import build_math_challenge
+from learning_helper.challenges.problems import build_problems_challenge
 from learning_helper.challenges.questions import build_questions_challenge
 from learning_helper.challenges.reading import build_reading_challenge
 
@@ -14,6 +15,7 @@ Builder = Callable[[int, random.Random | None], ChallengeSpec]
 BUILDERS: dict[str, Builder] = {
     "colors": build_colors_challenge,
     "math": build_math_challenge,
+    "problems": build_problems_challenge,
     "questions": build_questions_challenge,
     "reading": build_reading_challenge,
 }

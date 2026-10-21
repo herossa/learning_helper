@@ -7,9 +7,12 @@ from learning_helper.adaptive.models import Attempt, ChallengeSpec, Profile
 from learning_helper.config import (
     ACCURACY_WINDOW,
     ADULT_PAUSE_SECONDS,
+    INTERVAL_STEP_SECONDS,
     LEVEL_DOWN_THRESHOLD,
     LEVEL_UP_THRESHOLD,
+    MAX_INTERVAL_SECONDS,
     MAX_LEVEL,
+    MIN_INTERVAL_SECONDS,
     MODULE_ORDER,
     UNLOCK_THRESHOLD,
 )
@@ -48,6 +51,11 @@ class AdaptiveEngine:
     def current_level(self, module_id: str) -> int:
         return int(self.profile().levels.get(module_id, 1))
 
+    def next_interval_seconds(self) -> int:
+        """Intervalo até o próximo desafio, ajustado pelas respostas."""
+        current = self.profile().interval_seconds
+        return max(MIN_INTERVAL_SECONDS, min(MAX_INTERVAL_SECONDS, current))
+
     def record_attempt(self, spec: ChallengeSpec, given_answer: str) -> Attempt:
         is_correct = given_answer == spec.correct_id
         attempt = self.store.insert_attempt(
@@ -68,8 +76,11 @@ class AdaptiveEngine:
                 "metadata": spec.metadata,
             },
         )
-        self._adapt()
-        self._touch_interrupt()
+        profile = self.profile()
+        self._adapt(profile)
+        self._adjust_interval(profile, is_correct)
+        profile.last_interrupt_at = datetime.now(timezone.utc)
+        self.store.save_profile(profile)
         return attempt
 
     def pause_for_adult(self, seconds: int = ADULT_PAUSE_SECONDS) -> None:
@@ -84,13 +95,15 @@ class AdaptiveEngine:
         moment = now or datetime.now(timezone.utc)
         return moment < profile.adult_pause_until
 
-    def _touch_interrupt(self) -> None:
-        profile = self.profile()
-        profile.last_interrupt_at = datetime.now(timezone.utc)
-        self.store.save_profile(profile)
+    def _adjust_interval(self, profile: Profile, is_correct: bool) -> None:
+        """Acerto espaça o próximo desafio; erro aproxima."""
+        step = INTERVAL_STEP_SECONDS if is_correct else -INTERVAL_STEP_SECONDS
+        profile.interval_seconds = max(
+            MIN_INTERVAL_SECONDS,
+            min(MAX_INTERVAL_SECONDS, profile.interval_seconds + step),
+        )
 
-    def _adapt(self) -> None:
-        profile = self.profile()
+    def _adapt(self, profile: Profile) -> None:
         for module in list(profile.unlocked_modules):
             count = self.store.count_attempts(module)
             if count < ACCURACY_WINDOW or count % ACCURACY_WINDOW != 0:
@@ -115,5 +128,3 @@ class AdaptiveEngine:
                 nxt = MODULE_ORDER[last_index + 1]
                 if acc is not None and acc >= UNLOCK_THRESHOLD and nxt not in profile.unlocked_modules:
                     profile.unlocked_modules.append(nxt)
-
-        self.store.save_profile(profile)

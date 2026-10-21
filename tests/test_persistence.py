@@ -1,6 +1,8 @@
+import sqlite3
 from datetime import datetime, timezone
 
 from learning_helper.adaptive.models import Profile
+from learning_helper.config import INITIAL_INTERVAL_SECONDS
 from learning_helper.persistence.db import Store
 
 
@@ -8,6 +10,7 @@ def test_schema_and_profile_defaults(store: Store) -> None:
     profile = store.get_profile()
     assert profile.unlocked_modules == ["colors"]
     assert profile.levels["colors"] == 1
+    assert profile.interval_seconds == INITIAL_INTERVAL_SECONDS
     assert store.count_attempts() == 0
 
 
@@ -41,11 +44,59 @@ def test_profile_roundtrip(store: Store) -> None:
     profile = Profile(
         unlocked_modules=["colors", "math"],
         levels={"colors": 2, "math": 1, "questions": 1, "reading": 1},
+        interval_seconds=240,
     )
     store.save_profile(profile)
     loaded = store.get_profile()
     assert loaded.unlocked_modules == ["colors", "math"]
     assert loaded.levels["colors"] == 2
+    assert loaded.interval_seconds == 240
+
+
+def test_migration_adds_problems_after_math(store: Store) -> None:
+    profile = store.get_profile()
+    profile.unlocked_modules = ["colors", "math", "questions", "reading"]
+    store.save_profile(profile)
+
+    reopened = Store(store.db_path)
+    loaded = reopened.get_profile()
+    assert loaded.unlocked_modules == ["colors", "math", "problems", "questions", "reading"]
+    assert loaded.levels["problems"] == 1
+
+
+def test_migration_does_not_duplicate_problems(store: Store) -> None:
+    profile = store.get_profile()
+    profile.unlocked_modules = ["colors", "math", "problems"]
+    store.save_profile(profile)
+
+    reopened = Store(store.db_path)
+    assert reopened.get_profile().unlocked_modules == ["colors", "math", "problems"]
+
+
+def test_migrates_profile_without_interval_column(tmp_path) -> None:
+    db_path = tmp_path / "old.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE profile (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            unlocked_modules_json TEXT NOT NULL,
+            levels_json TEXT NOT NULL,
+            last_interrupt_at TEXT,
+            adult_pause_until TEXT
+        );
+        INSERT INTO profile (id, unlocked_modules_json, levels_json)
+        VALUES (1, '["colors", "math"]', '{"colors": 2, "math": 1}');
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    store = Store(db_path)
+    profile = store.get_profile()
+    assert profile.interval_seconds == INITIAL_INTERVAL_SECONDS
+    assert profile.unlocked_modules == ["colors", "math", "problems"]
+    assert profile.levels["colors"] == 2
 
 
 def test_recent_attempts_are_oldest_first_in_window(store: Store) -> None:

@@ -19,5 +19,7 @@ CREATE TABLE IF NOT EXISTS profile (
     unlocked_modules_json TEXT NOT NULL,
     levels_json TEXT NOT NULL,
     last_interrupt_at TEXT,
-    adult_pause_until TEXT
+    adult_pause_until TEXT,
+    -- 180 espelha INITIAL_INTERVAL_SECONDS (config.py).
+    interval_seconds INTEGER NOT NULL DEFAULT 180
 );

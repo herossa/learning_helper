@@ -22,14 +22,17 @@ uv run python -m learning_helper --debug
 
 ## Como funciona
 
-A cada **15 minutos** (configurável em `src/learning_helper/config.py`) a tela inteira é bloqueada até a criança responder. Depois de uma resposta há um feedback curto (certo/errado) e o computador é liberado.
+O intervalo é adaptativo: entre **1 e 5 minutos** (limites e passo em `src/learning_helper/config.py`). Começa em **3 minutos**; cada resposta certa soma 30 segundos e cada resposta errada subtrai 30 segundos, sempre respeitando os limites de 1 e 5 minutos. Depois de uma resposta há um feedback curto (certo/errado) e o computador é liberado.
 
 Módulos, nesta ordem, desbloqueados pela taxa de acerto:
 
 1. Cores
 2. Contas
-3. Perguntas
-4. Leitura
+3. Problemas
+4. Perguntas
+5. Leitura
+
+Os problemas usam as mesmas operações de contas (soma, subtração e multiplicação, conforme o nível), mas em histórias curtas com nomes e objetos sorteados. Nunca aparecem números negativos: na subtração o total é sempre maior ou igual ao que sai, e as alternativas erradas também são sempre não negativas.
 
 Começa só com cores, no nível 1. A cada 10 tentativas de um módulo:
 
