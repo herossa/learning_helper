@@ -97,6 +97,60 @@ def test_overlay_does_not_show_challenge_immediately(tmp_path) -> None:
         store.close()
 
 
+def test_challenge_panel_text_mode_submits_typed_answer() -> None:
+    import customtkinter
+
+    from learning_helper.adaptive.models import ChallengeSpec
+    from learning_helper.overlay.host import ChallengePanel
+
+    try:
+        root = customtkinter.CTk()
+    except tkinter.TclError:
+        pytest.skip("sem display disponível")
+    root.withdraw()
+    answers: list[str] = []
+    spec = ChallengeSpec(
+        module_id="compare",
+        level=1,
+        prompt="Qual dos dois números a seguir é maior?\n\n7  ou  3",
+        choices=(),
+        correct_id="7",
+        input_mode="text",
+    )
+    panel = ChallengePanel(
+        root,
+        spec,
+        on_answer=lambda _spec, given: answers.append(given),
+        feedback_ms=10,
+    )
+    panel.pack()
+    root.update()
+
+    assert panel._entry is not None
+    panel._submit_text()
+    assert answers == []
+    assert panel._hint is not None
+    assert panel._hint.cget("text") == "Digite um número."
+
+    panel._entry.insert(0, "abc")
+    panel._submit_text()
+    assert answers == []
+    assert panel._hint.cget("text") == "Digite apenas o número."
+
+    panel._entry.delete(0, "end")
+    panel._entry.insert(0, " 07 ")
+    panel._submit_text()
+    assert panel._status.cget("text") == "Certo!"
+
+    deadline = time.monotonic() + 2
+    while not answers and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.01)
+    assert answers == ["07"]
+    assert panel._entry.cget("state") == "disabled"
+    root.destroy()
+
+
 def test_settings_window_saves_and_completes_onboarding(tmp_path) -> None:
     from learning_helper.overlay.settings_window import SettingsWindow
 

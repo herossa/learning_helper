@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-MODULE_ORDER = ("colors", "math", "problems", "questions", "reading")
+MODULE_ORDER = ("colors", "compare", "math", "problems", "questions", "reading")
 MODULE_LABELS = {
     "colors": "Cores",
+    "compare": "Comparação",
     "math": "Contas",
     "problems": "Problemas",
     "questions": "Perguntas",

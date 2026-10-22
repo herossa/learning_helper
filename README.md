@@ -2,7 +2,7 @@
 
 App de fundo que, de tempos em tempos, cobre a tela do computador com um desafio curto. Feito para uma criança de 9 anos: layout previsível, enunciado em português e dificuldade que sobe ou desce conforme a taxa de acerto.
 
-- 5 módulos: cores, contas, problemas, perguntas e leitura
+- 6 módulos: cores, comparação, contas, problemas, perguntas e leitura
 - Intervalo adaptativo entre 1 e 5 minutos, ajustado pelas respostas
 - Tela de configurações na primeira execução e depois pelo atalho/CLI
 - Estatísticas no navegador (tentativas, acertos, níveis e evolução)
@@ -106,10 +106,13 @@ Na **primeira execução**, a tela de configurações aparece antes de qualquer 
 Módulos, nesta ordem, desbloqueados pela taxa de acerto:
 
 1. Cores
-2. Contas
-3. Problemas
-4. Perguntas
-5. Leitura
+2. Comparação
+3. Contas
+4. Problemas
+5. Perguntas
+6. Leitura
+
+No módulo de comparação aparecem dois números e a criança deve digitar no campo de texto qual deles é o maior — ou o menor, conforme a pergunta — e confirmar em **OK**. A resposta também pode ser enviada com Enter.
 
 Os problemas usam as mesmas operações de contas (soma, subtração e multiplicação, conforme o nível), mas em histórias curtas com nomes e objetos sorteados. Nunca aparecem números negativos: na subtração o total é sempre maior ou igual ao que sai, e as alternativas erradas também são sempre não negativas.
 
@@ -120,7 +123,7 @@ Começa só com cores, no nível 1. A cada 10 tentativas de um módulo (valor co
 
 Os limiares e o nível máximo também podem ser mudados em Configurações. Módulos desativados não são escolhidos e são pulados no desbloqueio; o progresso deles fica guardado para quando forem religados.
 
-Cada resposta da criança é gravada em SQLite: teste (`module_id`), enunciado, opções, gabarito e o que foi respondido.
+Cada resposta da criança é gravada em SQLite: teste (`module_id`), enunciado, alternativas (quando houver), gabarito e o que foi respondido.
 
 ## Configurações
 
@@ -136,7 +139,7 @@ O que pode ser ajustado:
 - duração do feedback;
 - duração da pausa do adulto;
 - lembrete de banheiro (ligado/desligado, intervalo e duração);
-- módulos ativos (Cores, Contas, Problemas, Perguntas e Leitura);
+- módulos ativos (Cores, Comparação, Contas, Problemas, Perguntas e Leitura);
 - verificação de atualizações ao iniciar (ligada por padrão);
 - autostart no Linux.
 

@@ -76,24 +76,70 @@ def test_bathroom_fields_roundtrip(store: Store) -> None:
     assert settings.bathroom_reminder_enabled is True
 
 
-def test_migration_adds_problems_after_math(store: Store) -> None:
+def test_migration_backfills_modules_before_the_last_unlocked(store: Store) -> None:
     profile = store.get_profile()
     profile.unlocked_modules = ["colors", "math", "questions", "reading"]
     store.save_profile(profile)
 
     reopened = Store(store.db_path)
     loaded = reopened.get_profile()
-    assert loaded.unlocked_modules == ["colors", "math", "problems", "questions", "reading"]
+    assert loaded.unlocked_modules == [
+        "colors",
+        "compare",
+        "math",
+        "problems",
+        "questions",
+        "reading",
+    ]
     assert loaded.levels["problems"] == 1
 
 
-def test_migration_does_not_duplicate_problems(store: Store) -> None:
+def test_migration_does_not_duplicate_modules(store: Store) -> None:
     profile = store.get_profile()
-    profile.unlocked_modules = ["colors", "math", "problems"]
+    profile.unlocked_modules = ["colors", "compare", "math", "problems"]
     store.save_profile(profile)
 
     reopened = Store(store.db_path)
-    assert reopened.get_profile().unlocked_modules == ["colors", "math", "problems"]
+    assert reopened.get_profile().unlocked_modules == [
+        "colors",
+        "compare",
+        "math",
+        "problems",
+    ]
+
+
+def test_migration_enables_compare_for_old_settings(store: Store) -> None:
+    store.save_settings(
+        Settings(
+            enabled_modules=(
+                "colors",
+                "math",
+                "problems",
+                "questions",
+                "reading",
+            )
+        )
+    )
+    store._conn.execute("PRAGMA user_version = 0")
+    store._conn.commit()
+    store.close()
+
+    reopened = Store(store.db_path)
+    try:
+        assert "compare" in reopened.get_settings().enabled_modules
+    finally:
+        reopened.close()
+
+
+def test_compare_stays_disabled_after_migration(store: Store) -> None:
+    store.save_settings(Settings(enabled_modules=("colors", "math")))
+    store.close()
+
+    reopened = Store(store.db_path)
+    try:
+        assert "compare" not in reopened.get_settings().enabled_modules
+    finally:
+        reopened.close()
 
 
 def test_migrates_profile_without_interval_column(tmp_path) -> None:
@@ -118,7 +164,7 @@ def test_migrates_profile_without_interval_column(tmp_path) -> None:
     store = Store(db_path)
     profile = store.get_profile()
     assert profile.interval_seconds == INITIAL_INTERVAL_SECONDS
-    assert profile.unlocked_modules == ["colors", "math", "problems"]
+    assert profile.unlocked_modules == ["colors", "compare", "math"]
     assert profile.levels["colors"] == 2
     assert profile.last_bathroom_reminder_at is None
     assert store.get_settings().bathroom_reminder_enabled is True

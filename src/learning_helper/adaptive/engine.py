@@ -74,14 +74,14 @@ class AdaptiveEngine:
         )
 
     def record_attempt(self, spec: ChallengeSpec, given_answer: str) -> Attempt:
-        is_correct = given_answer == spec.correct_id
+        is_correct = spec.is_correct(given_answer)
         attempt = self.store.insert_attempt(
             module_id=spec.module_id,
             level=spec.level,
             prompt=spec.prompt,
             choices=spec.choice_ids(),
             correct_answer=spec.correct_id,
-            given_answer=given_answer,
+            given_answer=given_answer.strip(),
             is_correct=is_correct,
             spec_json={
                 "prompt": spec.prompt,

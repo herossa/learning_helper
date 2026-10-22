@@ -43,16 +43,16 @@ def test_starts_only_with_colors(engine: AdaptiveEngine) -> None:
 def test_pick_module_only_unlocked(store: Store) -> None:
     engine = AdaptiveEngine(store, rng=random.Random(0))
     _fill(engine, "colors", ACCURACY_WINDOW)
-    assert "math" in engine.profile().unlocked_modules
+    assert "compare" in engine.profile().unlocked_modules
     picks = {engine.pick_module() for _ in range(40)}
-    assert picks <= {"colors", "math"}
-    assert "questions" not in picks
+    assert picks <= {"colors", "compare"}
+    assert "math" not in picks
 
 
 def test_unlocks_next_module_after_high_accuracy(engine: AdaptiveEngine) -> None:
     _fill(engine, "colors", 9)
     profile = engine.profile()
-    assert "math" in profile.unlocked_modules
+    assert "compare" in profile.unlocked_modules
     assert profile.levels["colors"] >= 2
 
 
@@ -83,13 +83,10 @@ def test_level_does_not_exceed_max(engine: AdaptiveEngine) -> None:
 
 
 def test_unlock_order_follows_module_order(engine: AdaptiveEngine) -> None:
-    _fill(engine, "colors", ACCURACY_WINDOW)
-    assert engine.profile().unlocked_modules[-1] == "math"
-    _fill(engine, "math", ACCURACY_WINDOW)
-    assert engine.profile().unlocked_modules[-1] == "problems"
-    _fill(engine, "problems", ACCURACY_WINDOW)
-    assert engine.profile().unlocked_modules[-1] == "questions"
-    _fill(engine, "questions", ACCURACY_WINDOW)
+    for index, module in enumerate(MODULE_ORDER):
+        assert engine.profile().unlocked_modules[-1] == module
+        if index < len(MODULE_ORDER) - 1:
+            _fill(engine, module, ACCURACY_WINDOW)
     assert engine.profile().unlocked_modules == list(MODULE_ORDER)
 
 
@@ -111,6 +108,23 @@ def test_correct_answer_increases_interval(engine: AdaptiveEngine) -> None:
 def test_wrong_answer_decreases_interval(engine: AdaptiveEngine) -> None:
     engine.record_attempt(_spec(), "b")
     assert engine.next_interval_seconds() == INITIAL_INTERVAL_SECONDS - INTERVAL_STEP_SECONDS
+
+
+def test_text_answer_is_checked_with_normalization(engine: AdaptiveEngine) -> None:
+    spec = ChallengeSpec(
+        module_id="compare",
+        level=1,
+        prompt="Qual é o maior?",
+        choices=(),
+        correct_id="7",
+        input_mode="text",
+    )
+    attempt = engine.record_attempt(spec, " 07 ")
+    assert attempt.is_correct is True
+    assert attempt.given_answer == "07"
+
+    wrong = engine.record_attempt(spec, "8")
+    assert wrong.is_correct is False
 
 
 def test_interval_never_exceeds_maximum(engine: AdaptiveEngine) -> None:
@@ -178,7 +192,7 @@ def test_custom_interval_bounds_and_step(engine: AdaptiveEngine) -> None:
 def test_lower_unlock_threshold_unlocks_earlier(engine: AdaptiveEngine) -> None:
     engine.store.save_settings(Settings(unlock_threshold=0.5))
     _fill(engine, "colors", 5)
-    assert "math" in engine.profile().unlocked_modules
+    assert "compare" in engine.profile().unlocked_modules
 
 
 def test_disabled_modules_are_skipped_when_unlocking(engine: AdaptiveEngine) -> None:

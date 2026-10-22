@@ -16,9 +16,9 @@ def _spec(module_id: str) -> ChallengeSpec:
 def test_unlocked_module_never_removed(engine: AdaptiveEngine) -> None:
     for _ in range(ACCURACY_WINDOW):
         engine.record_attempt(_spec("colors"), "ok")
-    assert "math" in engine.profile().unlocked_modules
+    assert "compare" in engine.profile().unlocked_modules
     for _ in range(ACCURACY_WINDOW):
-        engine.record_attempt(_spec("math"), "no")
+        engine.record_attempt(_spec("compare"), "no")
     unlocked = engine.profile().unlocked_modules
-    assert "math" in unlocked
+    assert "compare" in unlocked
     assert unlocked[0] == MODULE_ORDER[0]
