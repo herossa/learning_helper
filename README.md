@@ -2,7 +2,7 @@
 
 App de fundo que, de tempos em tempos, cobre a tela do computador com um desafio curto. Feito para uma criança de 9 anos: layout previsível, enunciado em português e dificuldade que sobe ou desce conforme a taxa de acerto.
 
-- 6 módulos: cores, comparação, contas, problemas, perguntas e leitura
+- 7 módulos: cores, cores diferentes, comparação, contas, problemas, perguntas e leitura
 - Intervalo adaptativo entre 1 e 5 minutos, ajustado pelas respostas
 - Tela de configurações na primeira execução e depois pelo atalho/CLI
 - Estatísticas no navegador (tentativas, acertos, níveis e evolução)
@@ -106,11 +106,14 @@ Na **primeira execução**, a tela de configurações aparece antes de qualquer 
 Módulos, nesta ordem, desbloqueados pela taxa de acerto:
 
 1. Cores
-2. Comparação
-3. Contas
-4. Problemas
-5. Perguntas
-6. Leitura
+2. Cores diferentes
+3. Comparação
+4. Contas
+5. Problemas
+6. Perguntas
+7. Leitura
+
+No módulo de cores diferentes aparece uma cor no enunciado, como “Clique na cor que não é o verde.”, e a criança deve escolher qualquer quadrado que não seja a cor citada. A cor do enunciado é a única resposta errada.
 
 No módulo de comparação aparecem dois números e a criança deve digitar no campo de texto qual deles é o maior — ou o menor, conforme a pergunta — e confirmar em **OK**. A resposta também pode ser enviada com Enter.
 
@@ -139,7 +142,7 @@ O que pode ser ajustado:
 - duração do feedback;
 - duração da pausa do adulto;
 - lembrete de banheiro (ligado/desligado, intervalo e duração);
-- módulos ativos (Cores, Comparação, Contas, Problemas, Perguntas e Leitura);
+- módulos ativos (Cores, Cores diferentes, Comparação, Contas, Problemas, Perguntas e Leitura);
 - verificação de atualizações ao iniciar (ligada por padrão);
 - autostart no Linux.
 

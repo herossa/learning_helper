@@ -23,9 +23,22 @@ class ChallengeSpec:
     metadata: dict = field(default_factory=dict)
     # "choice" usa os botões de alternativa; "text" usa campo + botão OK.
     input_mode: str = "choice"
+    # Quando preenchido, qualquer id da lista é uma resposta correta.
+    correct_ids: tuple[str, ...] | None = None
+    # Gabarito legível para as estatísticas (ex.: "qualquer cor diferente de Verde").
+    correct_summary: str | None = None
 
     def choice_ids(self) -> list[str]:
         return [choice.id for choice in self.choices]
+
+    def accepted_ids(self) -> tuple[str, ...]:
+        if self.correct_ids is not None:
+            return self.correct_ids
+        return (self.correct_id,)
+
+    @property
+    def answer_text(self) -> str:
+        return self.correct_summary or self.correct_id
 
     def normalize_answer(self, answer: str) -> str:
         value = answer.strip()
@@ -37,7 +50,10 @@ class ChallengeSpec:
         return value
 
     def is_correct(self, answer: str) -> bool:
-        return self.normalize_answer(answer) == self.normalize_answer(self.correct_id)
+        normalized = self.normalize_answer(answer)
+        return normalized in {
+            self.normalize_answer(accepted) for accepted in self.accepted_ids()
+        }
 
 
 @dataclass(frozen=True)

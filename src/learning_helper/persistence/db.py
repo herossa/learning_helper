@@ -14,9 +14,10 @@ from learning_helper.config import INITIAL_INTERVAL_SECONDS, MODULE_ORDER
 from learning_helper.settings import Settings
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
-# Versão dos dados gravados. A 1 adiciona "compare" aos módulos ativos de
-# configurações antigas, que foram salvas antes de o módulo existir.
-SCHEMA_VERSION = 1
+# Versão dos dados gravados:
+# 1 adiciona "compare"; 2 adiciona "not_colors" aos módulos ativos de
+# configurações salvas antes de o módulo existir.
+SCHEMA_VERSION = 2
 
 
 def data_dir(
@@ -162,15 +163,20 @@ class Store:
         if version >= SCHEMA_VERSION:
             return
         settings = self.get_settings()
-        if "compare" not in settings.enabled_modules:
-            enabled = [*settings.enabled_modules, "compare"]
-            settings = replace(
-                settings,
-                enabled_modules=tuple(
-                    module for module in MODULE_ORDER if module in enabled
-                ),
-            )
-            self.save_settings(settings)
+        added: list[str] = []
+        if version < 1:
+            added.append("compare")
+        if version < 2:
+            added.append("not_colors")
+        enabled = [*settings.enabled_modules, *added]
+        migrated = replace(
+            settings,
+            enabled_modules=tuple(
+                module for module in MODULE_ORDER if module in enabled
+            ),
+        )
+        if migrated != settings:
+            self.save_settings(migrated)
         self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._conn.commit()
 

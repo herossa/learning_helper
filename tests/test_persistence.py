@@ -85,6 +85,7 @@ def test_migration_backfills_modules_before_the_last_unlocked(store: Store) -> N
     loaded = reopened.get_profile()
     assert loaded.unlocked_modules == [
         "colors",
+        "not_colors",
         "compare",
         "math",
         "problems",
@@ -102,13 +103,14 @@ def test_migration_does_not_duplicate_modules(store: Store) -> None:
     reopened = Store(store.db_path)
     assert reopened.get_profile().unlocked_modules == [
         "colors",
+        "not_colors",
         "compare",
         "math",
         "problems",
     ]
 
 
-def test_migration_enables_compare_for_old_settings(store: Store) -> None:
+def test_migration_enables_new_modules_for_old_settings(store: Store) -> None:
     store.save_settings(
         Settings(
             enabled_modules=(
@@ -126,18 +128,46 @@ def test_migration_enables_compare_for_old_settings(store: Store) -> None:
 
     reopened = Store(store.db_path)
     try:
-        assert "compare" in reopened.get_settings().enabled_modules
+        enabled = reopened.get_settings().enabled_modules
+        assert "compare" in enabled
+        assert "not_colors" in enabled
     finally:
         reopened.close()
 
 
-def test_compare_stays_disabled_after_migration(store: Store) -> None:
+def test_migration_adds_not_colors_for_version_1_settings(store: Store) -> None:
+    store.save_settings(
+        Settings(
+            enabled_modules=(
+                "colors",
+                "compare",
+                "math",
+                "problems",
+                "questions",
+                "reading",
+            )
+        )
+    )
+    store._conn.execute("PRAGMA user_version = 1")
+    store._conn.commit()
+    store.close()
+
+    reopened = Store(store.db_path)
+    try:
+        assert "not_colors" in reopened.get_settings().enabled_modules
+    finally:
+        reopened.close()
+
+
+def test_new_modules_stay_disabled_after_migration(store: Store) -> None:
     store.save_settings(Settings(enabled_modules=("colors", "math")))
     store.close()
 
     reopened = Store(store.db_path)
     try:
-        assert "compare" not in reopened.get_settings().enabled_modules
+        enabled = reopened.get_settings().enabled_modules
+        assert "compare" not in enabled
+        assert "not_colors" not in enabled
     finally:
         reopened.close()
 
@@ -164,7 +194,7 @@ def test_migrates_profile_without_interval_column(tmp_path) -> None:
     store = Store(db_path)
     profile = store.get_profile()
     assert profile.interval_seconds == INITIAL_INTERVAL_SECONDS
-    assert profile.unlocked_modules == ["colors", "compare", "math"]
+    assert profile.unlocked_modules == ["colors", "not_colors", "compare", "math"]
     assert profile.levels["colors"] == 2
     assert profile.last_bathroom_reminder_at is None
     assert store.get_settings().bathroom_reminder_enabled is True

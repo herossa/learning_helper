@@ -189,7 +189,7 @@ class ChallengePanel(customtkinter.CTkFrame):
         self._answered = True
         for button in self._buttons:
             button.configure(state="disabled")
-        self._settle(selected, selected == self._spec.correct_id)
+        self._settle(selected, self._spec.is_correct(selected))
 
     def _finish(self, selected: str) -> None:
         if not self.winfo_exists():
