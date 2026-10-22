@@ -92,13 +92,14 @@ def test_check_updates_reports_new_version(monkeypatch, capsys) -> None:
     from learning_helper import app
     from learning_helper.updates import client, install
 
-    monkeypatch.setattr(client, "fetch_manifest", lambda: _release("0.6.0"))
+    new_version = "99.0.0"
+    monkeypatch.setattr(client, "fetch_manifest", lambda: _release(new_version))
     monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
 
     assert app._check_updates() == 0
     output = capsys.readouterr().out
-    assert "Nova versão disponível: 0.6.0" in output
-    assert "LearningHelper-0.6.0-linux-x86_64.tar.gz" in output
+    assert f"Nova versão disponível: {new_version}" in output
+    assert f"LearningHelper-{new_version}-linux-x86_64.tar.gz" in output
 
 
 def test_check_updates_reports_current_version(monkeypatch, capsys) -> None:
@@ -115,7 +116,7 @@ def test_check_updates_reports_unavailable_auto_update(monkeypatch, capsys) -> N
     from learning_helper import app
     from learning_helper.updates import client, install
 
-    monkeypatch.setattr(client, "fetch_manifest", lambda: _release("0.6.0"))
+    monkeypatch.setattr(client, "fetch_manifest", lambda: _release("99.0.0"))
     monkeypatch.setattr(install, "asset_key", lambda: None)
 
     assert app._check_updates() == 0
