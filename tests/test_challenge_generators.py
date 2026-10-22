@@ -1,9 +1,17 @@
 import random
 
 from learning_helper.challenges.banks import load_bank
-from learning_helper.challenges.colors import PRIMARY_COLOR_DATA, build_colors_challenge
+from learning_helper.challenges.colors import (
+    PRIMARY_COLOR_DATA,
+    SIMILAR_GROUPS,
+    build_colors_challenge,
+)
 from learning_helper.challenges.comparison import build_comparison_challenge
 from learning_helper.challenges.math import build_math_challenge
+from learning_helper.challenges.not_colors import (
+    CHOICE_COUNTS,
+    build_not_colors_challenge,
+)
 from learning_helper.challenges.problems import NAMES, build_problems_challenge
 from learning_helper.challenges.questions import build_questions_challenge
 from learning_helper.challenges.reading import build_reading_challenge
@@ -116,6 +124,49 @@ def test_comparison_accepts_whitespace_and_leading_zero() -> None:
     assert spec.is_correct(f" {answer} ")
     assert spec.is_correct(f"0{answer}")
     assert not spec.is_correct(str(wrong))
+
+
+def test_not_colors_accepts_any_color_except_target() -> None:
+    rng = random.Random(9)
+    for level in range(1, 6):
+        for _ in range(100):
+            spec = build_not_colors_challenge(level, rng)
+            target = spec.metadata["target"]
+            target_name = spec.metadata["target_name"]
+            ids = spec.choice_ids()
+
+            assert spec.module_id == "not_colors"
+            assert target in ids
+            assert len(ids) == CHOICE_COUNTS[level]
+            assert len(set(ids)) == len(ids)
+            assert spec.prompt == (
+                f"Clique na cor que não é o {target_name.lower()}."
+            )
+            assert target_name in spec.correct_summary
+            assert set(spec.correct_ids) == set(ids) - {target}
+            assert spec.correct_id in spec.correct_ids
+            assert not spec.is_correct(target)
+            for choice in spec.choices:
+                assert choice.rgb is not None
+                assert choice.label == PRIMARY_COLOR_DATA[choice.id]["name"]
+                if choice.id != target:
+                    assert spec.is_correct(choice.id)
+
+
+def test_not_colors_uses_similar_colors_at_higher_levels() -> None:
+    rng = random.Random(12)
+    for level in (4, 5):
+        for _ in range(100):
+            spec = build_not_colors_challenge(level, rng)
+            target = spec.metadata["target"]
+            group = next(
+                (set(item) for item in SIMILAR_GROUPS if target in item),
+                None,
+            )
+            if group is None:
+                continue
+            others = set(spec.choice_ids()) - {target}
+            assert others <= group
 
 
 def test_registry_builds_all_modules() -> None:

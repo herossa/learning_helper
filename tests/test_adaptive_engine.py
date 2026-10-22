@@ -43,16 +43,16 @@ def test_starts_only_with_colors(engine: AdaptiveEngine) -> None:
 def test_pick_module_only_unlocked(store: Store) -> None:
     engine = AdaptiveEngine(store, rng=random.Random(0))
     _fill(engine, "colors", ACCURACY_WINDOW)
-    assert "compare" in engine.profile().unlocked_modules
+    assert "not_colors" in engine.profile().unlocked_modules
     picks = {engine.pick_module() for _ in range(40)}
-    assert picks <= {"colors", "compare"}
-    assert "math" not in picks
+    assert picks <= {"colors", "not_colors"}
+    assert "compare" not in picks
 
 
 def test_unlocks_next_module_after_high_accuracy(engine: AdaptiveEngine) -> None:
     _fill(engine, "colors", 9)
     profile = engine.profile()
-    assert "compare" in profile.unlocked_modules
+    assert "not_colors" in profile.unlocked_modules
     assert profile.levels["colors"] >= 2
 
 
@@ -127,6 +127,31 @@ def test_text_answer_is_checked_with_normalization(engine: AdaptiveEngine) -> No
     assert wrong.is_correct is False
 
 
+def test_multiple_correct_answers_are_accepted(engine: AdaptiveEngine) -> None:
+    spec = ChallengeSpec(
+        module_id="not_colors",
+        level=1,
+        prompt="Clique na cor que não é o verde.",
+        choices=(
+            ChallengeChoice(id="green", label="Verde"),
+            ChallengeChoice(id="blue", label="Azul"),
+            ChallengeChoice(id="red", label="Vermelho"),
+        ),
+        correct_id="blue",
+        correct_ids=("blue", "red"),
+        correct_summary="qualquer cor diferente de Verde",
+    )
+    attempt = engine.record_attempt(spec, "red")
+    assert attempt.is_correct is True
+    assert attempt.correct_answer == "qualquer cor diferente de Verde"
+    assert attempt.spec_json is not None
+    assert attempt.spec_json["correct_ids"] == ["blue", "red"]
+    assert attempt.spec_json["correct_summary"] == "qualquer cor diferente de Verde"
+
+    wrong = engine.record_attempt(spec, "green")
+    assert wrong.is_correct is False
+
+
 def test_interval_never_exceeds_maximum(engine: AdaptiveEngine) -> None:
     for _ in range(10):
         engine.record_attempt(_spec(), "a")
@@ -192,7 +217,7 @@ def test_custom_interval_bounds_and_step(engine: AdaptiveEngine) -> None:
 def test_lower_unlock_threshold_unlocks_earlier(engine: AdaptiveEngine) -> None:
     engine.store.save_settings(Settings(unlock_threshold=0.5))
     _fill(engine, "colors", 5)
-    assert "compare" in engine.profile().unlocked_modules
+    assert "not_colors" in engine.profile().unlocked_modules
 
 
 def test_disabled_modules_are_skipped_when_unlocking(engine: AdaptiveEngine) -> None:

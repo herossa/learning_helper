@@ -151,6 +151,51 @@ def test_challenge_panel_text_mode_submits_typed_answer() -> None:
     root.destroy()
 
 
+def test_challenge_panel_accepts_any_correct_color() -> None:
+    import customtkinter
+
+    from learning_helper.adaptive.models import ChallengeChoice, ChallengeSpec
+    from learning_helper.overlay.host import ChallengePanel
+
+    try:
+        root = customtkinter.CTk()
+    except tkinter.TclError:
+        pytest.skip("sem display disponível")
+    root.withdraw()
+    answers: list[str] = []
+    spec = ChallengeSpec(
+        module_id="not_colors",
+        level=1,
+        prompt="Clique na cor que não é o verde.",
+        choices=(
+            ChallengeChoice(id="green", label="Verde"),
+            ChallengeChoice(id="blue", label="Azul"),
+            ChallengeChoice(id="red", label="Vermelho"),
+        ),
+        correct_id="blue",
+        correct_ids=("blue", "red"),
+        correct_summary="qualquer cor diferente de Verde",
+    )
+    panel = ChallengePanel(
+        root,
+        spec,
+        on_answer=lambda _spec, given: answers.append(given),
+        feedback_ms=10,
+    )
+    panel.pack()
+    root.update()
+
+    panel._choose("red")
+    assert panel._status.cget("text") == "Certo!"
+
+    deadline = time.monotonic() + 2
+    while not answers and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.01)
+    assert answers == ["red"]
+    root.destroy()
+
+
 def test_settings_window_saves_and_completes_onboarding(tmp_path) -> None:
     from learning_helper.overlay.settings_window import SettingsWindow
 

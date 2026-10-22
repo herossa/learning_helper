@@ -75,23 +75,28 @@ class AdaptiveEngine:
 
     def record_attempt(self, spec: ChallengeSpec, given_answer: str) -> Attempt:
         is_correct = spec.is_correct(given_answer)
+        spec_json = {
+            "prompt": spec.prompt,
+            "choices": [
+                {"id": choice.id, "label": choice.label, "rgb": choice.rgb}
+                for choice in spec.choices
+            ],
+            "correct_id": spec.correct_id,
+            "metadata": spec.metadata,
+        }
+        if spec.correct_ids is not None:
+            spec_json["correct_ids"] = list(spec.correct_ids)
+        if spec.correct_summary is not None:
+            spec_json["correct_summary"] = spec.correct_summary
         attempt = self.store.insert_attempt(
             module_id=spec.module_id,
             level=spec.level,
             prompt=spec.prompt,
             choices=spec.choice_ids(),
-            correct_answer=spec.correct_id,
+            correct_answer=spec.answer_text,
             given_answer=given_answer.strip(),
             is_correct=is_correct,
-            spec_json={
-                "prompt": spec.prompt,
-                "choices": [
-                    {"id": choice.id, "label": choice.label, "rgb": choice.rgb}
-                    for choice in spec.choices
-                ],
-                "correct_id": spec.correct_id,
-                "metadata": spec.metadata,
-            },
+            spec_json=spec_json,
         )
         profile = self.profile()
         settings = self.settings()
