@@ -14,6 +14,9 @@ from learning_helper.config import INITIAL_INTERVAL_SECONDS, MODULE_ORDER
 from learning_helper.settings import Settings
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+# Versão dos dados gravados. A 1 adiciona "compare" aos módulos ativos de
+# configurações antigas, que foram salvas antes de o módulo existir.
+SCHEMA_VERSION = 1
 
 
 def data_dir(
@@ -70,6 +73,7 @@ class Store:
         self._ensure_profile()
         self._ensure_settings()
         self._migrate_unlocked_modules()
+        self._migrate_settings_modules()
 
     def close(self) -> None:
         self._conn.close()
@@ -135,17 +139,40 @@ class Store:
         self._conn.commit()
 
     def _migrate_unlocked_modules(self) -> None:
-        """Perfis antigos recebem `problems` logo depois de `math`."""
+        """Libera módulos novos que entraram antes do último desbloqueado.
+
+        O desbloqueio só avança a partir do último módulo da ordem, então um
+        módulo inserido no meio (como `compare`) precisa ser adicionado também
+        a perfis que já tinham passado por ele.
+        """
         profile = self.get_profile()
         unlocked = list(profile.unlocked_modules)
-        if "math" in unlocked and "problems" not in unlocked:
-            unlocked.append("problems")
-
         ordered = [module for module in MODULE_ORDER if module in unlocked]
+        if ordered:
+            last_index = MODULE_ORDER.index(ordered[-1])
+            ordered = list(MODULE_ORDER[: last_index + 1])
         ordered += [module for module in unlocked if module not in MODULE_ORDER]
         if ordered != profile.unlocked_modules:
             profile.unlocked_modules = ordered
             self.save_profile(profile)
+
+    def _migrate_settings_modules(self) -> None:
+        """Ativa módulos novos em configurações salvas por versões antigas."""
+        version = int(self._conn.execute("PRAGMA user_version").fetchone()[0])
+        if version >= SCHEMA_VERSION:
+            return
+        settings = self.get_settings()
+        if "compare" not in settings.enabled_modules:
+            enabled = [*settings.enabled_modules, "compare"]
+            settings = replace(
+                settings,
+                enabled_modules=tuple(
+                    module for module in MODULE_ORDER if module in enabled
+                ),
+            )
+            self.save_settings(settings)
+        self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        self._conn.commit()
 
     def get_profile(self) -> Profile:
         row = self._conn.execute(

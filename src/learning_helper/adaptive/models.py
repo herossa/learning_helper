@@ -21,9 +21,23 @@ class ChallengeSpec:
     choices: tuple[ChallengeChoice, ...]
     correct_id: str
     metadata: dict = field(default_factory=dict)
+    # "choice" usa os botões de alternativa; "text" usa campo + botão OK.
+    input_mode: str = "choice"
 
     def choice_ids(self) -> list[str]:
         return [choice.id for choice in self.choices]
+
+    def normalize_answer(self, answer: str) -> str:
+        value = answer.strip()
+        if self.input_mode == "text":
+            try:
+                return str(int(value))
+            except ValueError:
+                return value.casefold()
+        return value
+
+    def is_correct(self, answer: str) -> bool:
+        return self.normalize_answer(answer) == self.normalize_answer(self.correct_id)
 
 
 @dataclass(frozen=True)
