@@ -298,6 +298,24 @@ Modo desenvolvimento (intervalo de 10 segundos e botão `close` no overlay):
 uv run python -m learning_helper --debug
 ```
 
+### Atalhos com make
+
+O `Makefile` na raiz reúne os comandos mais usados. Rode `make help` para ver todos:
+
+```bash
+make setup          # uv sync --group dev
+make run            # abre o app
+make debug          # modo desenvolvimento
+make test           # suíte padrão
+make test ARGS="-k updates"   # filtra testes
+make test-gui       # testes de fumaça da interface (precisa de desktop)
+make check          # testes + self-check
+```
+
+Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make packages`) usam a versão de `src/learning_helper/__init__.py` e podem ser sobrescritos com `make packages VERSION=0.8.0`.
+
+No Windows, o `make` não vem instalado por padrão: use o Git Bash/MSYS2 (ou instale com `choco install make`). Os comandos com `uv` mostrados acima continuam funcionando normalmente.
+
 ### Branches e pull requests
 
 A branch `main` é protegida por dois rulesets ativos no GitHub:
