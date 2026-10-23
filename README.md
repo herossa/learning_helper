@@ -1,6 +1,16 @@
 # learning_helper
 
-App de fundo que, de tempos em tempos, cobre a tela do computador com um desafio curto. Feito para uma criança de 9 anos: layout previsível, enunciado em português e dificuldade que sobe ou desce conforme a taxa de acerto.
+**Um apoio de aprendizagem e rotina para meu filho autista.**
+
+O learning_helper nasceu de uma necessidade concreta da nossa família: oferecer ao meu filho, de 9 anos, uma forma previsível e acolhedora de exercitar habilidades cognitivas e de raciocínio lógico, ao mesmo tempo em que o apoia na rotina de ir ao banheiro nos momentos certos.
+
+A proposta é diferente de uma plataforma de estudos. Em vez de sessões longas ou telas cheias de estímulos, o app aparece de tempos em tempos com um desafio curto: uma pergunta em português, alternativas claras e um layout que não muda. A dificuldade acompanha o desempenho dele — sobe quando ele acerta e desce quando precisa de mais apoio —, para que o aprendizado continue desafiador sem virar cobrança ou frustração.
+
+São atividades de cores, comparação, contas, problemas, perguntas e leitura. Elas exercitam atenção, linguagem, memória de trabalho e resolução de problemas, sempre em pequenas doses que cabem na rotina.
+
+O lembrete de banheiro segue a mesma lógica de suporte: um aviso visual simples, com contagem regressiva, que ajuda na transição e na autonomia. Ele não é uma punição nem interrompe o aprendizado; faz parte do cuidado com a rotina.
+
+Tudo funciona localmente, os dados ficam na máquina e os intervalos, módulos e limites podem ser ajustados pelos adultos. O objetivo não é substituir acompanhamento pedagógico, fonoaudiológico ou terapêutico, mas criar uma ponte leve entre as necessidades do dia a dia e pequenos momentos de aprendizagem.
 
 - 7 módulos: cores, cores diferentes, comparação, contas, problemas, perguntas e leitura
 - Intervalo adaptativo entre 1 e 5 minutos, ajustado pelas respostas
