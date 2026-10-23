@@ -397,13 +397,13 @@ uv sync --frozen --group dev
 uv run pyinstaller packaging/learning-helper.spec --noconfirm
 
 # AppImage (precisa do appimagetool no PATH ou em APPIMAGETOOL)
-APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.6.0
+APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.7.0
 
 # pacote por usuário com install/uninstall
-packaging/linux/build-user-tarball.sh 0.6.0
+packaging/linux/build-user-tarball.sh 0.7.0
 
 # teste de instalação/desinstalação em HOME temporário
-packaging/linux/test-user-install.sh dist/LearningHelper-0.6.0-linux-x86_64.tar.gz
+packaging/linux/test-user-install.sh dist/LearningHelper-0.7.0-linux-x86_64.tar.gz
 ```
 
 Saídas em `dist/`: `LearningHelper-<versão>-x86_64.AppImage` e `LearningHelper-<versão>-linux-x86_64.tar.gz`.
@@ -413,7 +413,7 @@ Se o `appimagetool` for o próprio AppImage, rode:
 ```bash
 APPIMAGETOOL=./appimagetool-x86_64.AppImage \
 APPIMAGETOOL_ARGS=--appimage-extract-and-run \
-packaging/linux/build-appimage.sh 0.6.0
+packaging/linux/build-appimage.sh 0.7.0
 ```
 
 ### Windows
@@ -446,15 +446,15 @@ uv run python packaging/make_bathroom_image.py
 O workflow `.github/workflows/package.yml` roda em PRs e pushes que mexem em `src/`, `packaging/` ou dependências. Para publicar:
 
 ```bash
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.7.0
+git push origin v0.7.0
 ```
 
-O job de release confere se a tag (`v0.6.0`) bate com `__version__` (`0.6.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário, o `SHA256SUMS` e o **`latest.json`**. O manifesto é gerado por `packaging/make_update_manifest.py` a partir dos próprios artefatos e contém versão, nome, URL e SHA-256 de cada pacote; é dele que o updater lê a release mais recente.
+O job de release confere se a tag (`v0.7.0`) bate com `__version__` (`0.7.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário, o `SHA256SUMS` e o **`latest.json`**. O manifesto é gerado por `packaging/make_update_manifest.py` a partir dos próprios artefatos e contém versão, nome, URL e SHA-256 de cada pacote; é dele que o updater lê a release mais recente.
 
 Para testar o manifesto localmente depois de gerar os pacotes:
 
 ```bash
 uv run python packaging/make_update_manifest.py \
-  --version 0.6.0 --dist dist --tag v0.6.0
+  --version 0.7.0 --dist dist --tag v0.7.0
 ```
