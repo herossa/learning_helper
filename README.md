@@ -113,6 +113,8 @@ Módulos, nesta ordem, desbloqueados pela taxa de acerto:
 6. Perguntas
 7. Leitura
 
+Depois de desbloqueados, os módulos disponíveis são sorteados em rodadas: cada um aparece uma vez antes de qualquer um repetir, então todos aparecem na mesma quantidade durante a execução. Um módulo recém-desbloqueado entra na rodada em andamento, sem esconder os demais.
+
 No módulo de cores diferentes aparece uma cor no enunciado, como “Clique na cor que não é o verde.”, e a criança deve escolher qualquer quadrado que não seja a cor citada. A cor do enunciado é a única resposta errada.
 
 No módulo de comparação aparecem dois números e a criança deve digitar no campo de texto qual deles é o maior — ou o menor, conforme a pergunta — e confirmar em **OK**. A resposta também pode ser enviada com Enter.

@@ -19,6 +19,9 @@ class AdaptiveEngine:
     def __init__(self, store: Store, rng: random.Random | None = None) -> None:
         self.store = store
         self.rng = rng or random.Random()
+        self._module_bag: list[str] = []
+        self._drawn_modules: set[str] = set()
+        self._last_module: str | None = None
 
     def profile(self) -> Profile:
         return self.store.get_profile()
@@ -27,6 +30,35 @@ class AdaptiveEngine:
         return self.store.get_settings()
 
     def pick_module(self) -> str:
+        """Sorteia os módulos em rodadas, com a mesma quantidade para cada um.
+
+        O saco é mantido em memória durante a execução: cada módulo disponível
+        aparece uma vez por rodada antes de qualquer um repetir. Um módulo
+        desbloqueado no meio da execução entra na rodada em andamento.
+        """
+        available = self._available_modules()
+        self._sync_module_bag(available)
+
+        if not self._module_bag:
+            self._drawn_modules.clear()
+            self._module_bag = list(available)
+            self.rng.shuffle(self._module_bag)
+            # Evita repetir o módulo anterior na virada da rodada.
+            if (
+                len(self._module_bag) > 1
+                and self._module_bag[-1] == self._last_module
+            ):
+                self._module_bag[-1], self._module_bag[0] = (
+                    self._module_bag[0],
+                    self._module_bag[-1],
+                )
+
+        module = self._module_bag.pop()
+        self._drawn_modules.add(module)
+        self._last_module = module
+        return module
+
+    def _available_modules(self) -> list[str]:
         profile = self.profile()
         settings = self.settings()
         enabled = set(settings.enabled_modules)
@@ -35,31 +67,38 @@ class AdaptiveEngine:
             for module in MODULE_ORDER
             if module in profile.unlocked_modules and module in enabled
         ]
-        if not unlocked:
-            # Nenhum módulo ativo desbloqueado: libera o primeiro ativo para
-            # não deixar a criança sem desafio.
-            fallback = next(
-                (module for module in MODULE_ORDER if module in enabled),
-                MODULE_ORDER[0],
-            )
-            if fallback not in profile.unlocked_modules:
-                profile.unlocked_modules.append(fallback)
-                profile.unlocked_modules = [
-                    module
-                    for module in MODULE_ORDER
-                    if module in profile.unlocked_modules
-                ]
-                self.store.save_profile(profile)
-            unlocked = [fallback]
+        if unlocked:
+            return unlocked
 
-        weights: list[float] = []
-        for index, module in enumerate(unlocked):
-            recency_bonus = index + 1
-            recent = self.store.recent_attempts(module, settings.accuracy_window)
-            acc = accuracy_of(recent)
-            weakness = 1.0 - acc if acc is not None else 0.5
-            weights.append(recency_bonus * (0.5 + weakness))
-        return self.rng.choices(unlocked, weights=weights, k=1)[0]
+        # Nenhum módulo ativo desbloqueado: libera o primeiro ativo para
+        # não deixar a criança sem desafio.
+        fallback = next(
+            (module for module in MODULE_ORDER if module in enabled),
+            MODULE_ORDER[0],
+        )
+        if fallback not in profile.unlocked_modules:
+            profile.unlocked_modules.append(fallback)
+            profile.unlocked_modules = [
+                module
+                for module in MODULE_ORDER
+                if module in profile.unlocked_modules
+            ]
+            self.store.save_profile(profile)
+        return [fallback]
+
+    def _sync_module_bag(self, available: list[str]) -> None:
+        """Remove módulos indisponíveis e inclui os que entraram na rodada."""
+        allowed = set(available)
+        self._module_bag = [
+            module for module in self._module_bag if module in allowed
+        ]
+        added = False
+        for module in available:
+            if module not in self._drawn_modules and module not in self._module_bag:
+                self._module_bag.append(module)
+                added = True
+        if added:
+            self.rng.shuffle(self._module_bag)
 
     def current_level(self, module_id: str) -> int:
         return int(self.profile().levels.get(module_id, 1))
