@@ -152,6 +152,8 @@ Cada resposta da criança é gravada em SQLite: teste (`module_id`), enunciado, 
 
 Todas as telas estão em [docs/screenshots](docs/screenshots/). Para gerá-las novamente, use `make screenshots`.
 
+Há também uma apresentação curta em [docs/apresentacao](docs/apresentacao/), em `.pptx` e `.pdf`, pronta para importar no Google Slides.
+
 ## Configurações
 
 A tela de configurações aparece automaticamente na primeira execução e pode ser aberta depois de duas formas:
@@ -333,6 +335,7 @@ make test ARGS="-k updates"   # filtra testes
 make test-gui       # testes de fumaça da interface (precisa de desktop)
 make check          # testes + self-check
 make screenshots    # gera as capturas em docs/screenshots
+make apresentacao   # gera a apresentação em docs/apresentacao
 ```
 
 As capturas precisam de uma sessão gráfica; o painel de estatísticas usa Firefox/geckodriver e o Selenium é baixado só durante a execução.
