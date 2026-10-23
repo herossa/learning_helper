@@ -9,7 +9,7 @@ TARBALL := dist/LearningHelper-$(VERSION)-linux-x86_64.tar.gz
 
 .DEFAULT_GOAL := help
 .PHONY: help setup hooks run debug settings stats stats-server test test-gui check \
-	self-check screenshots wheel build appimage tarball packages test-install clean
+	self-check screenshots apresentacao apresentacao-pdf wheel build appimage tarball packages test-install clean
 
 help: ## Mostra os comandos disponíveis
 	@awk 'BEGIN {FS = ":.*## "; printf "Uso: make <alvo> [VARIAVEL=valor]\n\nAlvos:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -48,6 +48,12 @@ self-check: ## Valida os recursos empacotados
 
 screenshots: ## Gera capturas de tela em docs/screenshots (ONLY=configuracoes)
 	uv run --with selenium python scripts/capture_screens.py --out $(OUT) $(if $(ONLY),--only $(ONLY))
+
+apresentacao: ## Gera a apresentação em docs/apresentacao/learning-helper.pptx
+	uv run --with python-pptx python scripts/build_presentation.py
+
+apresentacao-pdf: apresentacao ## Gera também a prévia em PDF (precisa do LibreOffice)
+	soffice --headless --convert-to pdf --outdir docs/apresentacao docs/apresentacao/learning-helper.pptx
 
 wheel: ## Gera a wheel em dist/
 	uv build --wheel
