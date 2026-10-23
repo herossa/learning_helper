@@ -130,6 +130,18 @@ Os limiares e o nível máximo também podem ser mudados em Configurações. Mó
 
 Cada resposta da criança é gravada em SQLite: teste (`module_id`), enunciado, alternativas (quando houver), gabarito e o que foi respondido.
 
+## Capturas de tela
+
+| Desafio | Lembrete de banheiro |
+|---|---|
+| <img src="docs/screenshots/01-desafio-cores.png" alt="Desafio de cores" width="420"> | <img src="docs/screenshots/10-lembrete-banheiro.png" alt="Lembrete de banheiro" width="420"> |
+
+| Configurações | Estatísticas |
+|---|---|
+| <img src="docs/screenshots/13-configuracoes-topo.png" alt="Configurações" width="420"> | <img src="docs/screenshots/16-estatisticas-evolucao.png" alt="Estatísticas" width="420"> |
+
+Todas as telas estão em [docs/screenshots](docs/screenshots/). Para gerá-las novamente, use `make screenshots`.
+
 ## Configurações
 
 A tela de configurações aparece automaticamente na primeira execução e pode ser aberta depois de duas formas:
@@ -310,7 +322,10 @@ make test           # suíte padrão
 make test ARGS="-k updates"   # filtra testes
 make test-gui       # testes de fumaça da interface (precisa de desktop)
 make check          # testes + self-check
+make screenshots    # gera as capturas em docs/screenshots
 ```
+
+As capturas precisam de uma sessão gráfica; o painel de estatísticas usa Firefox/geckodriver e o Selenium é baixado só durante a execução.
 
 Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make packages`) usam a versão de `src/learning_helper/__init__.py` e podem ser sobrescritos com `make packages VERSION=0.8.0`.
 
@@ -399,7 +414,8 @@ src/learning_helper/
 └── persistence/         # SQLite e schema.sql
 packaging/               # PyInstaller, Inno Setup, AppImage, tar.gz, manifesto e ícone
 .githooks/               # hooks locais (bloqueio de push direto na main)
-scripts/                 # ativação dos hooks locais
+scripts/                 # hooks locais e captura de telas
+docs/screenshots/        # capturas usadas na documentação
 .github/                 # workflows de testes, empacotamento e branch-guard
 tests/
 ```
