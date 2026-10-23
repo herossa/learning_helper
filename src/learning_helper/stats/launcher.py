@@ -9,12 +9,17 @@ import subprocess
 import sys
 import time
 import webbrowser
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.error import URLError
 from urllib.request import urlopen
 
 from learning_helper import lifecycle
 from learning_helper.persistence.db import data_dir
+
+if TYPE_CHECKING:
+    import tkinter as tk
 
 HEALTH_TIMEOUT_SECONDS = 25
 WINDOW_TITLE = "Learning Helper — Estatísticas"
@@ -66,7 +71,8 @@ def _show_error(message: str) -> None:
         print(message, file=sys.stderr)
 
 
-def _serve_window(child: subprocess.Popen, url: str) -> None:
+def build_window(url: str, on_close: Callable[["tk.Tk"], None]) -> "tk.Tk":
+    """Cria a janela que acompanha o servidor de estatísticas."""
     import tkinter as tk
 
     root = tk.Tk()
@@ -91,10 +97,18 @@ def _serve_window(child: subprocess.Popen, url: str) -> None:
         command=lambda: webbrowser.open(url),
         width=20,
     ).pack(pady=(0, 4))
-    tk.Button(root, text="Encerrar", command=lambda: _stop_and_close(root, child)).pack()
+    tk.Button(root, text="Encerrar", command=lambda: on_close(root)).pack()
+    root.protocol("WM_DELETE_WINDOW", lambda: on_close(root))
+    return root
 
-    def stop() -> None:
+
+def _serve_window(child: subprocess.Popen, url: str) -> None:
+    import tkinter as tk
+
+    def stop(root) -> None:
         _stop_and_close(root, child)
+
+    root = build_window(url, stop)
 
     def poll_quit() -> None:
         if lifecycle.quit_requested():
@@ -105,7 +119,6 @@ def _serve_window(child: subprocess.Popen, url: str) -> None:
         except tk.TclError:
             pass
 
-    root.protocol("WM_DELETE_WINDOW", stop)
     root.after(500, poll_quit)
     root.mainloop()
 

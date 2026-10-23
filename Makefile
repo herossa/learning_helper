@@ -3,11 +3,13 @@ SHELL := /bin/sh
 
 VERSION ?= $(shell sed -n 's/^__version__ = "\(.*\)"/\1/p' src/learning_helper/__init__.py)
 PORT ?= 8501
+OUT ?= docs/screenshots
+ONLY ?=
 TARBALL := dist/LearningHelper-$(VERSION)-linux-x86_64.tar.gz
 
 .DEFAULT_GOAL := help
 .PHONY: help setup hooks run debug settings stats stats-server test test-gui check \
-	self-check wheel build appimage tarball packages test-install clean
+	self-check screenshots wheel build appimage tarball packages test-install clean
 
 help: ## Mostra os comandos disponíveis
 	@awk 'BEGIN {FS = ":.*## "; printf "Uso: make <alvo> [VARIAVEL=valor]\n\nAlvos:\n"} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -43,6 +45,9 @@ check: test self-check ## Roda os testes e o self-check
 
 self-check: ## Valida os recursos empacotados
 	uv run python -m learning_helper --self-check
+
+screenshots: ## Gera capturas de tela em docs/screenshots (ONLY=configuracoes)
+	uv run --with selenium python scripts/capture_screens.py --out $(OUT) $(if $(ONLY),--only $(ONLY))
 
 wheel: ## Gera a wheel em dist/
 	uv build --wheel
