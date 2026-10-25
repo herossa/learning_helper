@@ -227,6 +227,7 @@ def capture_challenges(out: Path, seed: int) -> None:
             spec,
             on_answer=lambda *_args: None,
             feedback_ms=60_000,
+            answer_delay_ms=0,
         )
         panel.place(
             relx=0.5,
@@ -248,6 +249,7 @@ def capture_feedback(out: Path, seed: int) -> None:
             spec,
             on_answer=lambda *_args: None,
             feedback_ms=60_000,
+            answer_delay_ms=0,
         )
         panel.place(
             relx=0.5,

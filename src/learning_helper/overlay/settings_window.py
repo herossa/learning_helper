@@ -209,6 +209,12 @@ class SettingsWindow(customtkinter.CTk):
     def _build_routine(self, parent) -> None:
         card = self._section(parent, "Rotina")
         self._entry_row(card, "adult_pause", "Pausa do adulto", "min")
+        self._entry_row(
+            card,
+            "wrong_answer_wait",
+            "Espera após resposta errada",
+            "s",
+        )
         self._entry_row(card, "bathroom_interval", "Intervalo do lembrete de banheiro", "min")
         self._entry_row(card, "bathroom_duration", "Duração do lembrete de banheiro", "s")
 
@@ -492,6 +498,7 @@ class SettingsWindow(customtkinter.CTk):
             "max_level": str(settings.max_level),
             "feedback": _fmt_seconds(settings.feedback_ms),
             "adult_pause": _fmt_minutes(settings.adult_pause_seconds),
+            "wrong_answer_wait": str(settings.wrong_answer_wait_seconds),
             "bathroom_interval": _fmt_minutes(settings.bathroom_interval_seconds),
             "bathroom_duration": str(settings.bathroom_duration_seconds),
         }
@@ -549,6 +556,9 @@ class SettingsWindow(customtkinter.CTk):
         max_level = self._number("max_level", "Nível máximo", errors)
         feedback = self._number("feedback", "Feedback", errors)
         adult_pause = self._number("adult_pause", "Pausa do adulto", errors)
+        wrong_answer_wait = self._number(
+            "wrong_answer_wait", "Espera após resposta errada", errors
+        )
         bathroom_interval = self._number(
             "bathroom_interval", "Intervalo do banheiro", errors
         )
@@ -570,6 +580,7 @@ class SettingsWindow(customtkinter.CTk):
             level_down_threshold=down / 100,
             max_level=int(round(max_level)),
             feedback_ms=int(round(feedback * 1000)),
+            wrong_answer_wait_seconds=int(round(wrong_answer_wait)),
             adult_pause_seconds=int(round(adult_pause * 60)),
             bathroom_reminder_enabled=bool(self._bathroom_switch.get()),
             bathroom_interval_seconds=int(round(bathroom_interval * 60)),

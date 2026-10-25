@@ -6,7 +6,7 @@ from collections.abc import Callable
 import customtkinter
 
 from learning_helper.adaptive.models import ChallengeChoice, ChallengeSpec
-from learning_helper.config import FEEDBACK_MS
+from learning_helper.config import ANSWER_UNLOCK_DELAY_MS, FEEDBACK_MS
 from learning_helper.overlay.images import color_swatch, rgb_to_hex
 
 MAX_COLUMNS = 4
@@ -16,6 +16,7 @@ CARD_COLOR = "#f7f7f7"
 CORRECT_COLOR = "#d6f5d6"
 WRONG_COLOR = "#f8d4d4"
 HINT_COLOR = "#555555"
+GUIDANCE_TEXT = "Leia com atenção antes de responder."
 
 
 class ChallengePanel(customtkinter.CTkFrame):
@@ -28,12 +29,18 @@ class ChallengePanel(customtkinter.CTkFrame):
         *,
         on_answer: Callable[[ChallengeSpec, str], None],
         feedback_ms: int = FEEDBACK_MS,
+        answer_delay_ms: int = ANSWER_UNLOCK_DELAY_MS,
     ) -> None:
         super().__init__(parent, corner_radius=24, fg_color=CARD_COLOR)
         self._spec = spec
         self._on_answer = on_answer
         self._feedback_ms = feedback_ms
+        self._answer_delay_ms = max(0, int(answer_delay_ms))
         self._answered = False
+        self._locked = self._answer_delay_ms > 0
+        self._unlock_job: str | None = None
+        self._focus_job: str | None = None
+        self._feedback_job: str | None = None
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -48,17 +55,70 @@ class ChallengePanel(customtkinter.CTkFrame):
         self._status.grid(row=0, column=0, sticky="ew", padx=32, pady=(32, 16))
 
         self._choices_frame = customtkinter.CTkFrame(self, fg_color="transparent")
-        self._choices_frame.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 28))
+        self._choices_frame.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 12))
+
+        self._guidance = customtkinter.CTkLabel(
+            self,
+            text=GUIDANCE_TEXT,
+            font=("Arial", 16),
+            text_color=HINT_COLOR,
+        )
+        self._guidance.grid(row=2, column=0, pady=(0, 24))
 
         self._buttons: list[customtkinter.CTkButton] = []
         self._entry: customtkinter.CTkEntry | None = None
         self._ok_button: customtkinter.CTkButton | None = None
         self._hint: customtkinter.CTkLabel | None = None
         self._place_choices()
+        if self._locked:
+            self._set_answers_enabled(False)
+            self._unlock_job = self.after(
+                self._answer_delay_ms, self._unlock_answers
+            )
+        elif self._entry is not None:
+            self._schedule_focus()
         self.bind("<Configure>", self._on_configure)
 
     def _on_configure(self, event) -> None:
         self._status.configure(wraplength=max(240, event.width - 64))
+
+    def _set_answers_enabled(self, enabled: bool) -> None:
+        state = "normal" if enabled else "disabled"
+        for button in self._buttons:
+            button.configure(state=state)
+        if self._entry is not None:
+            self._entry.configure(state=state)
+        if self._ok_button is not None:
+            self._ok_button.configure(state=state)
+
+    def _unlock_answers(self) -> None:
+        self._unlock_job = None
+        if not self.winfo_exists():
+            return
+        self._locked = False
+        if self._answered:
+            return
+        self._set_answers_enabled(True)
+        if self._entry is not None:
+            self._schedule_focus()
+
+    def _schedule_focus(self) -> None:
+        self._focus_job = self.after(50, self._focus_entry)
+
+    def _cancel_job(self, attribute: str) -> None:
+        job = getattr(self, attribute)
+        if job is None:
+            return
+        try:
+            self.after_cancel(job)
+        except tk.TclError:
+            pass
+        setattr(self, attribute, None)
+
+    def destroy(self) -> None:
+        for attribute in ("_unlock_job", "_focus_job", "_feedback_job"):
+            self._cancel_job(attribute)
+        super().destroy()
 
     def _place_choices(self) -> None:
         if self._spec.input_mode == "text":
@@ -120,10 +180,10 @@ class ChallengePanel(customtkinter.CTkFrame):
             text_color=HINT_COLOR,
         )
         self._hint.grid(row=1, column=0, pady=(6, 0))
-        self.after(100, self._focus_entry)
 
     def _focus_entry(self) -> None:
-        if not self.winfo_exists() or self._entry is None:
+        self._focus_job = None
+        if self._locked or not self.winfo_exists() or self._entry is None:
             return
         try:
             self._entry.focus_set()
@@ -138,7 +198,7 @@ class ChallengePanel(customtkinter.CTkFrame):
             self._hint.configure(text=text)
 
     def _submit_text(self) -> None:
-        if self._answered or self._entry is None:
+        if self._locked or self._answered or self._entry is None:
             return
         raw = self._entry.get().strip()
         if not raw:
@@ -181,10 +241,12 @@ class ChallengePanel(customtkinter.CTkFrame):
         self._status.configure(
             text="Certo!" if correct else "Quase! Olhe com calma da próxima vez."
         )
-        self.after(self._feedback_ms, lambda: self._finish(given))
+        self._feedback_job = self.after(
+            self._feedback_ms, lambda: self._finish(given)
+        )
 
     def _choose(self, selected: str) -> None:
-        if self._answered:
+        if self._locked or self._answered:
             return
         self._answered = True
         for button in self._buttons:
@@ -192,6 +254,7 @@ class ChallengePanel(customtkinter.CTkFrame):
         self._settle(selected, self._spec.is_correct(selected))
 
     def _finish(self, selected: str) -> None:
+        self._feedback_job = None
         if not self.winfo_exists():
             return
         self._on_answer(self._spec, selected)
