@@ -16,6 +16,7 @@ Tudo funciona localmente, os dados ficam na máquina e os intervalos, módulos e
 - Intervalo adaptativo entre 1 e 5 minutos, ajustado pelas respostas
 - Resposta errada bloqueia a tela com contagem regressiva (1 minuto por padrão)
 - Alternativas liberadas após 5 segundos, com lembrete para ler com atenção
+- Limite diário de 2 horas, com bloqueio, desligamento e extensão autorizada por senha
 - Tela de configurações na primeira execução e depois pelo atalho/CLI
 - Estatísticas no navegador (tentativas, acertos, níveis e evolução)
 - Lembrete de banheiro a cada 30 minutos, bloqueando a tela por 1 minuto
@@ -173,6 +174,8 @@ O que pode ser ajustado:
 - janela de avaliação, limiares de desbloqueio/nível e nível máximo;
 - duração do feedback;
 - espera após resposta errada (padrão: 1 minuto);
+- limite diário de uso (padrão: 2 horas);
+- senha de autorização para estender o limite diário;
 - duração da pausa do adulto;
 - lembrete de banheiro (ligado/desligado, intervalo e duração);
 - módulos ativos (Cores, Cores diferentes, Comparação, Contas, Problemas, Perguntas e Leitura);
@@ -238,7 +241,7 @@ O painel abre uma janela pequena com **Encerrar**; fechá-la desliga o servidor 
 
 ## Atalho do adulto
 
-`Control+Alt+Shift+P` fecha o desafio (sem gravar tentativa) ou a espera por resposta errada e pausa novos bloqueios por **30 minutos**. Não aparece na tela da criança. Esc e Alt+F4 não fecham o desafio nem a contagem.
+`Control+Alt+Shift+P` fecha o desafio (sem gravar tentativa), a espera por resposta errada, o lembrete de banheiro ou o bloqueio diário e pausa novos bloqueios por **30 minutos**. Não aparece na tela da criança. Esc e Alt+F4 não fecham o desafio nem a contagem. No bloqueio diário, o tempo continua contando durante a pausa.
 
 ## Lembrete de banheiro
 
@@ -257,12 +260,27 @@ learning-helper --disable-bathroom-reminder
 learning-helper --enable-bathroom-reminder
 ```
 
+## Limite diário de uso
+
+O app soma o tempo em que fica aberto e, ao chegar ao limite diário (por padrão, **2 horas**), bloqueia a tela. O tempo é gravado no banco a cada poucos segundos e também ao fechar o app, então reiniciar o computador não zera a contagem. O limite reinicia à meia-noite no horário local.
+
+Enquanto o bloqueio diário está na tela, esse tempo **não** conta como uso. A tela oferece duas ações:
+
+- **Desligar computador** — usa o desligamento do sistema (`systemctl poweroff` no Linux e `shutdown /s` no Windows). Se o comando falhar, a tela mostra o erro e continua aberta.
+- **Estender tempo** — pede a senha de autorização e uma quantidade de minutos (1 a 240). A extensão vale **somente até reiniciar o app ou o computador** e não altera o limite configurado.
+
+A senha é cadastrada em **Configurações → Autorização para estender tempo** e guardada como hash com salt, nunca em texto puro. Sem senha cadastrada, o botão **Estender tempo** informa que a autorização não foi configurada. A senha pode ser trocada ou removida na mesma seção.
+
+`Control+Alt+Shift+P` também libera o bloqueio diário, aplicando a pausa do adulto de **30 minutos**. O tempo de uso continua contando durante essa pausa; quando ela termina, o bloqueio volta se o limite ainda estiver estourado.
+
 ## Dados locais
 
 Banco:
 
 - Linux: `~/.local/share/learning_helper/learning_helper.db`
 - Windows: `%LOCALAPPDATA%\learning_helper\learning_helper.db`
+
+O tempo de uso diário fica na tabela `daily_usage`, uma linha por dia local, e não é apagado ao desinstalar.
 
 Logs (rotativos, até 1 MB + 2 backups):
 
@@ -292,6 +310,8 @@ uv run python -m learning_helper --db /caminho/arquivo.db
 - **AppImage não abre por falta de FUSE** — rode com `--appimage-extract-and-run`.
 - **Nada acontece ao abrir o app de novo** — é a trava de instância única: a segunda cópia detecta o `app.lock` e encerra sem abrir outra janela.
 - **O overlay não aparece** — pode ser a pausa do adulto ativa (30 minutos), o primeiro intervalo ainda contando ou a instância antiga ainda rodando.
+- **O bloqueio diário aparece logo ao abrir o app** — é esperado se o tempo já usado hoje chegou ao limite; a contagem fica no banco e só reinicia à meia-noite local. Use **Estender tempo** com a senha ou desligue o computador.
+- **Não consigo estender o tempo diário** — cadastre uma senha em **Configurações → Autorização para estender tempo**. Sem senha, a extensão fica indisponível.
 - **As estatísticas não abrem** — veja o `stats.log` na mesma pasta; o servidor usa uma porta local aleatória e o navegador padrão.
 - **Windows: aviso do SmartScreen** — o instalador não é assinado; use **Mais informações → Executar assim mesmo**.
 - **A atualização não instala** — veja `updates/apply.log` e `app.log`. Se tiver falhado três vezes, aguarde o bloqueio de 7 dias ou use **Verificar atualizações agora** em Configurações. Em instalações para todos os usuários, confirme o UAC.
@@ -324,7 +344,7 @@ uv run learning-helper
 
 `learning-helper` usa o launcher gráfico: no Windows abre **sem janela de console**. Para acompanhar erros no terminal, use `uv run python -m learning_helper`.
 
-Modo desenvolvimento (intervalo de 10 segundos e botão `close` no overlay):
+Modo desenvolvimento (intervalo de 10 segundos, limite diário de 2 minutos e botão `close` no overlay):
 
 ```bash
 uv run python -m learning_helper --debug
@@ -408,7 +428,7 @@ No Windows o autostart é gerenciado pelo instalador; as duas opções de autost
 uv run pytest
 ```
 
-Os testes cobrem o motor adaptativo, os geradores de desafio, o SQLite e a migração de configurações, a escolha de diretório/geometria por plataforma, o CLI, o autostart, a trava de instância, o manifesto/estado/download do atualizador, a solicitação de encerramento, as consultas de estatísticas e o painel Streamlit (via `AppTest`). A UI Tk fica de fora da suíte por padrão; para os testes de fumaça da janela e da tela de configurações (precisam de desktop), rode:
+Os testes cobrem o motor adaptativo, os geradores de desafio, o SQLite e a migração de configurações, a escolha de diretório/geometria por plataforma, o CLI, o autostart, a trava de instância, o manifesto/estado/download do atualizador, a solicitação de encerramento, o limite diário e a senha de extensão, as consultas de estatísticas e o painel Streamlit (via `AppTest`). A UI Tk fica de fora da suíte por padrão; para os testes de fumaça da janela e da tela de configurações (precisam de desktop), rode:
 
 ```bash
 RUN_GUI_TESTS=1 uv run pytest tests/test_overlay_smoke.py
@@ -423,6 +443,9 @@ src/learning_helper/
 ├── app.py               # CLI, logging, self-check, primeira execução e instância única
 ├── settings.py          # preferências, validação e padrões
 ├── lifecycle.py         # pedido de encerramento entre app, configurações e estatísticas
+├── power.py             # desligamento do computador por plataforma
+├── security.py          # hash e verificação da senha de autorização
+├── usage.py             # contagem e extensão do limite diário (sem Tk)
 ├── autostart.py         # entrada .desktop por usuário (Linux)
 ├── single_instance.py   # trava de arquivo multiplataforma
 ├── reminders.py         # cálculo do lembrete de banheiro (sem Tk)

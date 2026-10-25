@@ -19,6 +19,7 @@ from learning_helper.adaptive.engine import AdaptiveEngine
 from learning_helper.config import RuntimeConfig
 from learning_helper.overlay.main_window import OverlayApp
 from learning_helper.persistence.db import Store
+from learning_helper.security import hash_password
 
 
 @pytest.fixture(autouse=True)
@@ -477,5 +478,136 @@ def test_settings_window_does_not_change_current_interval_later(tmp_path) -> Non
         window._save()
         assert store.get_settings().initial_interval_seconds == 240
         assert store.get_profile().interval_seconds == 300
+    finally:
+        store.close()
+
+
+def _start_exhausted_overlay(store, engine):
+    from learning_helper.overlay.main_window import OverlayApp
+    from learning_helper.usage import local_day_key
+
+    store.add_daily_usage(local_day_key(), 10_000)
+    try:
+        app = OverlayApp(engine, RuntimeConfig(debug=True))
+    except tkinter.TclError:
+        pytest.skip("sem display disponível")
+    deadline = time.monotonic() + 3
+    while not app._daily_limit_visible and time.monotonic() < deadline:
+        app.update()
+        time.sleep(0.02)
+    assert app._daily_limit_visible is True
+    return app
+
+
+def test_overlay_shows_daily_limit_when_usage_is_exhausted(tmp_path) -> None:
+    store = Store(tmp_path / "learning_helper.db")
+    engine = AdaptiveEngine(store, rng=random.Random(0))
+    try:
+        app = _start_exhausted_overlay(store, engine)
+        assert app._daily_limit_panel is not None
+        assert app._panel is None
+        assert app._penalty_panel is None
+        app._hide_daily_limit(resume=False)
+        app.update()
+        assert app._daily_limit_visible is False
+        app.destroy()
+    finally:
+        store.close()
+
+
+def test_daily_limit_extension_checks_password_and_minutes(tmp_path) -> None:
+    from learning_helper.settings import Settings
+
+    store = Store(tmp_path / "learning_helper.db")
+    store.save_settings(Settings(extension_password_hash=hash_password("abcd")))
+    engine = AdaptiveEngine(store, rng=random.Random(0))
+    try:
+        app = _start_exhausted_overlay(store, engine)
+
+        assert app._on_extension_submit("errada", 5) == "Senha incorreta."
+        assert app._on_extension_submit("abcd", 0) is not None
+        assert app._daily_limit_visible is True
+        assert app._daily_usage.extension_seconds == 0
+
+        assert app._on_extension_submit("abcd", 5) is None
+        assert app._daily_limit_visible is False
+        assert app._daily_usage.extension_seconds == 5 * 60
+        app.destroy()
+    finally:
+        store.close()
+
+
+def test_daily_limit_without_password_keeps_extension_unavailable(tmp_path) -> None:
+    store = Store(tmp_path / "learning_helper.db")
+    engine = AdaptiveEngine(store, rng=random.Random(0))
+    try:
+        app = _start_exhausted_overlay(store, engine)
+
+        app._on_daily_extend()
+        app.update()
+
+        assert app._extension_panel is None
+        assert app._daily_limit_panel is not None
+        assert "Nenhuma senha" in app._daily_limit_panel._error.cget("text")
+        app.destroy()
+    finally:
+        store.close()
+
+
+def test_daily_limit_adult_shortcut_pauses_and_hides(tmp_path) -> None:
+    store = Store(tmp_path / "learning_helper.db")
+    engine = AdaptiveEngine(store, rng=random.Random(0))
+    try:
+        app = _start_exhausted_overlay(store, engine)
+
+        app._on_adult_pause()
+        app.update()
+
+        assert app._daily_limit_visible is False
+        assert engine.is_paused() is True
+        app.destroy()
+    finally:
+        store.close()
+
+
+def test_settings_window_saves_daily_limit_and_password(tmp_path) -> None:
+    from learning_helper.overlay.settings_window import SettingsWindow
+    from learning_helper.security import verify_password
+
+    store = Store(tmp_path / "learning_helper.db")
+    try:
+        try:
+            window = SettingsWindow(store, first_run=False)
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        window._vars["daily_limit"].set("90")
+        window._vars["extension_password"].set("abcd")
+        window._vars["extension_password_confirm"].set("abcd")
+        window._save()
+
+        settings = store.get_settings()
+        assert settings.daily_usage_limit_seconds == 90 * 60
+        assert verify_password("abcd", settings.extension_password_hash) is True
+    finally:
+        store.close()
+
+
+def test_settings_window_rejects_mismatched_password(tmp_path) -> None:
+    from learning_helper.overlay.settings_window import SettingsWindow
+
+    store = Store(tmp_path / "learning_helper.db")
+    try:
+        try:
+            window = SettingsWindow(store, first_run=False)
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        window._vars["extension_password"].set("abcd")
+        window._vars["extension_password_confirm"].set("abce")
+        window._save()
+
+        assert window.winfo_exists()
+        assert "não confere" in window._status.cget("text")
+        assert store.get_settings().extension_password_hash == ""
+        window.destroy()
     finally:
         store.close()

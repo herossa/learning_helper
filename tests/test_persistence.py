@@ -253,6 +253,29 @@ def test_existing_database_is_treated_as_onboarded(tmp_path) -> None:
         store.close()
 
 
+def test_daily_usage_accumulates_and_survives_reopen(store: Store) -> None:
+    assert store.get_daily_usage("2026-10-25") == 0
+    assert store.add_daily_usage("2026-10-25", 30) == 30
+    assert store.add_daily_usage("2026-10-25", 15) == 45
+    assert store.get_daily_usage("2026-10-26") == 0
+
+    path = store.db_path
+    store.close()
+    reopened = Store(path)
+    try:
+        assert reopened.get_daily_usage("2026-10-25") == 45
+    finally:
+        reopened.close()
+
+
+def test_daily_usage_rejects_negative_seconds(store: Store) -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        store.add_daily_usage("2026-10-25", -1)
+    assert store.get_daily_usage("2026-10-25") == 0
+
+
 def test_settings_roundtrip_and_validation(store: Store) -> None:
     settings = Settings(
         initial_interval_seconds=120,
