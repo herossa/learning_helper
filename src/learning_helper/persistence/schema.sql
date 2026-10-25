@@ -31,3 +31,9 @@ CREATE TABLE IF NOT EXISTS settings (
     values_json TEXT NOT NULL,
     updated_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS daily_usage (
+    day TEXT PRIMARY KEY,
+    used_seconds INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT
+);

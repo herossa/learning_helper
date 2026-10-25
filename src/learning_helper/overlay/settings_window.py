@@ -15,8 +15,13 @@ from tkinter import messagebox
 import customtkinter
 
 from learning_helper import __version__, autostart, lifecycle
-from learning_helper.config import MODULE_LABELS, MODULE_ORDER
+from learning_helper.config import (
+    EXTENSION_PASSWORD_MIN_LENGTH,
+    MODULE_LABELS,
+    MODULE_ORDER,
+)
 from learning_helper.persistence.db import Store, data_dir
+from learning_helper.security import hash_password
 from learning_helper.settings import Settings
 
 CARD_COLOR = "#f7f7f7"
@@ -44,6 +49,8 @@ class SettingsWindow(customtkinter.CTk):
         self._module_vars: dict[str, tk.BooleanVar] = {}
         self._autostart_var: tk.BooleanVar | None = None
         self._update_var: tk.BooleanVar | None = None
+        self._current_password_hash = ""
+        self._remove_password_var: tk.BooleanVar | None = None
         self._update_status: customtkinter.CTkLabel | None = None
         self._update_button: customtkinter.CTkButton | None = None
         self._updating = False
@@ -101,6 +108,7 @@ class SettingsWindow(customtkinter.CTk):
         self._build_learning(body)
         self._build_accuracy(body)
         self._build_routine(body)
+        self._build_authorization(body)
         self._build_modules(body)
         self._build_data(body)
         if not self._first_run:
@@ -155,6 +163,7 @@ class SettingsWindow(customtkinter.CTk):
         label: str,
         suffix: str = "",
         width: int = 100,
+        show: str | None = None,
     ) -> None:
         row = customtkinter.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", padx=18, pady=4)
@@ -163,9 +172,16 @@ class SettingsWindow(customtkinter.CTk):
         ).pack(side="left")
         variable = tk.StringVar()
         self._vars[key] = variable
-        customtkinter.CTkEntry(
-            row, textvariable=variable, width=width, justify="right"
-        ).pack(side="left", padx=(8, 6))
+        entry_options = {
+            "textvariable": variable,
+            "width": width,
+            "justify": "right",
+        }
+        if show is not None:
+            entry_options["show"] = show
+        customtkinter.CTkEntry(row, **entry_options).pack(
+            side="left", padx=(8, 6)
+        )
         if suffix:
             customtkinter.CTkLabel(row, text=suffix, anchor="w").pack(side="left")
 
@@ -208,6 +224,7 @@ class SettingsWindow(customtkinter.CTk):
 
     def _build_routine(self, parent) -> None:
         card = self._section(parent, "Rotina")
+        self._entry_row(card, "daily_limit", "Limite de uso diário", "min")
         self._entry_row(card, "adult_pause", "Pausa do adulto", "min")
         self._entry_row(
             card,
@@ -250,6 +267,38 @@ class SettingsWindow(customtkinter.CTk):
                 card,
                 "No Windows, o início automático é gerenciado pelo instalador.",
             )
+
+    def _build_authorization(self, parent) -> None:
+        card = self._section(parent, "Autorização para estender tempo")
+        self._entry_row(
+            card,
+            "extension_password",
+            "Nova senha",
+            width=220,
+            show="*",
+        )
+        self._entry_row(
+            card,
+            "extension_password_confirm",
+            "Confirmar nova senha",
+            width=220,
+            show="*",
+        )
+        self._remove_password_var = tk.BooleanVar(value=False)
+        customtkinter.CTkCheckBox(
+            card,
+            text="Remover senha cadastrada",
+            variable=self._remove_password_var,
+            onvalue=True,
+            offvalue=False,
+        ).pack(anchor="w", padx=18, pady=(8, 2))
+        self._caption(
+            card,
+            "A senha libera o botão Estender tempo no limite diário. Deixe os "
+            "campos em branco para manter a senha atual. Use pelo menos "
+            f"{EXTENSION_PASSWORD_MIN_LENGTH} caracteres. Sem senha cadastrada, "
+            "a extensão fica indisponível.",
+        )
 
     def _build_modules(self, parent) -> None:
         card = self._section(parent, "Módulos ativos")
@@ -497,13 +546,19 @@ class SettingsWindow(customtkinter.CTk):
             "down": _fmt_percent(settings.level_down_threshold),
             "max_level": str(settings.max_level),
             "feedback": _fmt_seconds(settings.feedback_ms),
+            "daily_limit": _fmt_minutes(settings.daily_usage_limit_seconds),
             "adult_pause": _fmt_minutes(settings.adult_pause_seconds),
             "wrong_answer_wait": str(settings.wrong_answer_wait_seconds),
             "bathroom_interval": _fmt_minutes(settings.bathroom_interval_seconds),
             "bathroom_duration": str(settings.bathroom_duration_seconds),
+            "extension_password": "",
+            "extension_password_confirm": "",
         }
         for key, value in values.items():
             self._vars[key].set(value)
+        self._current_password_hash = settings.extension_password_hash
+        if self._remove_password_var is not None:
+            self._remove_password_var.set(False)
         if settings.bathroom_reminder_enabled:
             self._bathroom_switch.select()
         else:
@@ -555,6 +610,9 @@ class SettingsWindow(customtkinter.CTk):
         down = self._number("down", "Descer de nível", errors)
         max_level = self._number("max_level", "Nível máximo", errors)
         feedback = self._number("feedback", "Feedback", errors)
+        daily_limit = self._number(
+            "daily_limit", "Limite de uso diário", errors
+        )
         adult_pause = self._number("adult_pause", "Pausa do adulto", errors)
         wrong_answer_wait = self._number(
             "wrong_answer_wait", "Espera após resposta errada", errors
@@ -565,6 +623,32 @@ class SettingsWindow(customtkinter.CTk):
         bathroom_duration = self._number(
             "bathroom_duration", "Duração do banheiro", errors
         )
+
+        password = self._vars["extension_password"].get()
+        password_confirmation = self._vars["extension_password_confirm"].get()
+        remove_password = bool(
+            self._remove_password_var.get()
+            if self._remove_password_var is not None
+            else False
+        )
+        password_hash = self._current_password_hash
+        if remove_password:
+            if password or password_confirmation:
+                errors.append(
+                    "Deixe os campos de senha em branco para remover a senha."
+                )
+            else:
+                password_hash = ""
+        elif password or password_confirmation:
+            if password != password_confirmation:
+                errors.append("A confirmação da senha não confere.")
+            elif len(password) < EXTENSION_PASSWORD_MIN_LENGTH:
+                errors.append(
+                    "A senha deve ter pelo menos "
+                    f"{EXTENSION_PASSWORD_MIN_LENGTH} caracteres."
+                )
+            else:
+                password_hash = hash_password(password)
         if errors:
             self._show_errors(errors)
             return None
@@ -581,6 +665,8 @@ class SettingsWindow(customtkinter.CTk):
             max_level=int(round(max_level)),
             feedback_ms=int(round(feedback * 1000)),
             wrong_answer_wait_seconds=int(round(wrong_answer_wait)),
+            daily_usage_limit_seconds=int(round(daily_limit * 60)),
+            extension_password_hash=password_hash,
             adult_pause_seconds=int(round(adult_pause * 60)),
             bathroom_reminder_enabled=bool(self._bathroom_switch.get()),
             bathroom_interval_seconds=int(round(bathroom_interval * 60)),

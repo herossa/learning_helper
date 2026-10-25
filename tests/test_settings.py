@@ -7,6 +7,7 @@ from learning_helper.config import (
     ADULT_PAUSE_SECONDS,
     BATHROOM_DURATION_SECONDS,
     BATHROOM_INTERVAL_SECONDS,
+    DAILY_USAGE_LIMIT_SECONDS,
     FEEDBACK_MS,
     INITIAL_INTERVAL_SECONDS,
     INTERVAL_STEP_SECONDS,
@@ -19,7 +20,8 @@ from learning_helper.config import (
     UNLOCK_THRESHOLD,
     WRONG_ANSWER_WAIT_SECONDS,
 )
-from learning_helper.settings import Settings
+from learning_helper.security import hash_password
+from learning_helper.settings import MAX_PASSWORD_HASH_LENGTH, Settings
 
 
 def test_defaults_match_config_constants() -> None:
@@ -35,6 +37,8 @@ def test_defaults_match_config_constants() -> None:
     assert settings.max_level == MAX_LEVEL
     assert settings.feedback_ms == FEEDBACK_MS
     assert settings.wrong_answer_wait_seconds == WRONG_ANSWER_WAIT_SECONDS
+    assert settings.daily_usage_limit_seconds == DAILY_USAGE_LIMIT_SECONDS
+    assert settings.extension_password_hash == ""
     assert settings.adult_pause_seconds == ADULT_PAUSE_SECONDS
     assert settings.bathroom_interval_seconds == BATHROOM_INTERVAL_SECONDS
     assert settings.bathroom_duration_seconds == BATHROOM_DURATION_SECONDS
@@ -119,6 +123,58 @@ def test_wrong_answer_wait_is_clamped() -> None:
         .wrong_answer_wait_seconds
         == 300
     )
+
+
+def test_daily_limit_is_clamped() -> None:
+    assert (
+        Settings(daily_usage_limit_seconds=1).normalized()
+        .daily_usage_limit_seconds
+        == 15 * 60
+    )
+    assert (
+        Settings(daily_usage_limit_seconds=99_999).normalized()
+        .daily_usage_limit_seconds
+        == 24 * 60 * 60
+    )
+
+
+def test_daily_limit_and_password_roundtrip() -> None:
+    password_hash = hash_password("abcd")
+    settings = Settings(
+        daily_usage_limit_seconds=90 * 60,
+        extension_password_hash=password_hash,
+    )
+
+    loaded = Settings.from_json(settings.to_json())
+
+    assert loaded.daily_usage_limit_seconds == 90 * 60
+    assert loaded.extension_password_hash == password_hash
+
+
+def test_from_dict_keeps_password_hash_as_text() -> None:
+    loaded = Settings.from_dict(
+        {
+            "daily_usage_limit_seconds": "5400",
+            "extension_password_hash": "hash-qualquer",
+        }
+    )
+
+    assert loaded.daily_usage_limit_seconds == 5400
+    assert loaded.extension_password_hash == "hash-qualquer"
+
+
+def test_password_hash_is_truncated_to_a_safe_length() -> None:
+    loaded = Settings(
+        extension_password_hash="x" * (MAX_PASSWORD_HASH_LENGTH + 20)
+    ).normalized()
+
+    assert len(loaded.extension_password_hash) == MAX_PASSWORD_HASH_LENGTH
+
+
+def test_validate_rejects_bad_daily_limit() -> None:
+    errors = Settings(daily_usage_limit_seconds=60).validate()
+
+    assert any("limite de uso diário" in error for error in errors)
 
 
 def test_normalized_keeps_minimum_below_maximum() -> None:

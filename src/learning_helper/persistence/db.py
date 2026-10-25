@@ -256,6 +256,32 @@ class Store:
         )
         self._conn.commit()
 
+    def get_daily_usage(self, day: str) -> int:
+        row = self._conn.execute(
+            "SELECT used_seconds FROM daily_usage WHERE day = ?",
+            (day,),
+        ).fetchone()
+        return int(row["used_seconds"]) if row is not None else 0
+
+    def add_daily_usage(self, day: str, seconds: int) -> int:
+        value = int(seconds)
+        if value < 0:
+            raise ValueError("O tempo de uso não pode ser negativo.")
+        if value == 0:
+            return self.get_daily_usage(day)
+        self._conn.execute(
+            """
+            INSERT INTO daily_usage (day, used_seconds, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(day) DO UPDATE SET
+                used_seconds = daily_usage.used_seconds + excluded.used_seconds,
+                updated_at = excluded.updated_at
+            """,
+            (day, value, _dumps_dt(_utc_now())),
+        )
+        self._conn.commit()
+        return self.get_daily_usage(day)
+
     def insert_attempt(
         self,
         *,

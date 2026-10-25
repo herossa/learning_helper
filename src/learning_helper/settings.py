@@ -16,6 +16,7 @@ from learning_helper.config import (
     ADULT_PAUSE_SECONDS,
     BATHROOM_DURATION_SECONDS,
     BATHROOM_INTERVAL_SECONDS,
+    DAILY_USAGE_LIMIT_SECONDS,
     FEEDBACK_MS,
     INITIAL_INTERVAL_SECONDS,
     INTERVAL_STEP_SECONDS,
@@ -43,6 +44,9 @@ FEEDBACK_FLOOR_MS = 500
 FEEDBACK_CEILING_MS = 3000
 WRONG_ANSWER_WAIT_FLOOR_SECONDS = 10
 WRONG_ANSWER_WAIT_CEILING_SECONDS = 300
+DAILY_USAGE_LIMIT_FLOOR_SECONDS = 15 * 60
+DAILY_USAGE_LIMIT_CEILING_SECONDS = 24 * 60 * 60
+MAX_PASSWORD_HASH_LENGTH = 512
 ADULT_PAUSE_FLOOR_SECONDS = 60
 ADULT_PAUSE_CEILING_SECONDS = 120 * 60
 BATHROOM_INTERVAL_FLOOR_SECONDS = 5 * 60
@@ -73,6 +77,12 @@ def _as_float(value: Any, default: float) -> float:
         return default
 
 
+def _as_str(value: Any, default: str) -> str:
+    if isinstance(value, str):
+        return value
+    return default
+
+
 @dataclass(frozen=True)
 class Settings:
     initial_interval_seconds: int = INITIAL_INTERVAL_SECONDS
@@ -86,6 +96,8 @@ class Settings:
     max_level: int = MAX_LEVEL
     feedback_ms: int = FEEDBACK_MS
     wrong_answer_wait_seconds: int = WRONG_ANSWER_WAIT_SECONDS
+    daily_usage_limit_seconds: int = DAILY_USAGE_LIMIT_SECONDS
+    extension_password_hash: str = ""
     adult_pause_seconds: int = ADULT_PAUSE_SECONDS
     bathroom_reminder_enabled: bool = True
     bathroom_interval_seconds: int = BATHROOM_INTERVAL_SECONDS
@@ -148,6 +160,14 @@ class Settings:
                 WRONG_ANSWER_WAIT_FLOOR_SECONDS,
                 WRONG_ANSWER_WAIT_CEILING_SECONDS,
             ),
+            daily_usage_limit_seconds=_clamp(
+                self.daily_usage_limit_seconds,
+                DAILY_USAGE_LIMIT_FLOOR_SECONDS,
+                DAILY_USAGE_LIMIT_CEILING_SECONDS,
+            ),
+            extension_password_hash=str(self.extension_password_hash or "")[
+                :MAX_PASSWORD_HASH_LENGTH
+            ],
             adult_pause_seconds=_clamp(
                 self.adult_pause_seconds,
                 ADULT_PAUSE_FLOOR_SECONDS,
@@ -224,6 +244,16 @@ class Settings:
                 f"{WRONG_ANSWER_WAIT_CEILING_SECONDS} segundos."
             )
         if not (
+            DAILY_USAGE_LIMIT_FLOOR_SECONDS
+            <= self.daily_usage_limit_seconds
+            <= DAILY_USAGE_LIMIT_CEILING_SECONDS
+        ):
+            errors.append(
+                "O limite de uso diário deve ficar entre "
+                f"{DAILY_USAGE_LIMIT_FLOOR_SECONDS // 60} minutos e "
+                f"{DAILY_USAGE_LIMIT_CEILING_SECONDS // 3600} horas."
+            )
+        if not (
             ADULT_PAUSE_FLOOR_SECONDS
             <= self.adult_pause_seconds
             <= ADULT_PAUSE_CEILING_SECONDS
@@ -288,6 +318,8 @@ class Settings:
                 values[item.name] = bool(raw)
             elif isinstance(current, float):
                 values[item.name] = _as_float(raw, current)
+            elif isinstance(current, str):
+                values[item.name] = _as_str(raw, current)
             else:
                 values[item.name] = _as_int(raw, current)
         return replace(defaults, **values).normalized()

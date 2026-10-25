@@ -43,6 +43,15 @@ DEBUG_WRONG_ANSWER_WAIT_SECONDS = 10
 # As alternativas só podem ser acionadas depois deste tempo.
 ANSWER_UNLOCK_DELAY_MS = 5 * 1000
 
+# Limite diário de uso: o tempo é contado enquanto o app está em execução.
+DAILY_USAGE_LIMIT_SECONDS = 2 * 60 * 60
+DEBUG_DAILY_USAGE_LIMIT_SECONDS = 2 * 60
+DAILY_USAGE_TICK_MS = 10 * 1000
+DAILY_USAGE_FLUSH_SECONDS = 30
+EXTENSION_MINUTES_MIN = 1
+EXTENSION_MINUTES_MAX = 240
+EXTENSION_PASSWORD_MIN_LENGTH = 4
+
 # Lembrete de banheiro: não é desafio, apenas bloqueia a tela por um tempo.
 BATHROOM_INTERVAL_SECONDS = 30 * 60
 BATHROOM_DURATION_SECONDS = 60
