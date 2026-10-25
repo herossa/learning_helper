@@ -16,14 +16,17 @@ from learning_helper.config import (
     BATHROOM_DEFER_SECONDS,
     DEBUG_BATHROOM_DURATION_SECONDS,
     DEBUG_BATHROOM_INTERVAL_SECONDS,
+    DEBUG_WRONG_ANSWER_WAIT_SECONDS,
     RuntimeConfig,
 )
 from learning_helper.overlay.bathroom import BathroomPanel
+from learning_helper.overlay.countdown import WRONG_CARD_COLOR, CountdownPanel
 from learning_helper.overlay.geometry import format_geometry
 from learning_helper.overlay.host import ChallengePanel
 
 PANEL_RELWIDTH = 0.62
 PANEL_RELHEIGHT = 0.58
+SHOW_RETRY_MS = 1000
 
 LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +62,7 @@ class OverlayApp(customtkinter.CTk):
         self.config = config
         self._update_service = update_service
         self._panel: ChallengePanel | None = None
+        self._penalty_panel: CountdownPanel | None = None
         self._showing = False
         self._job: str | None = None
         self._bathroom_panel: BathroomPanel | None = None
@@ -160,6 +164,8 @@ class OverlayApp(customtkinter.CTk):
             self._job = self.after(BATHROOM_DEFER_SECONDS * 1000, self._show_challenge)
             return
         if self._showing:
+            # Ainda há desafio ou espera na tela: tenta de novo em seguida.
+            self._job = self.after(SHOW_RETRY_MS, self._show_challenge)
             return
         if self.engine.is_paused():
             self._schedule_next()
@@ -191,6 +197,10 @@ class OverlayApp(customtkinter.CTk):
         if self._panel is not None:
             self._panel.destroy()
             self._panel = None
+        if self._penalty_panel is not None:
+            self._penalty_panel.cancel()
+            self._penalty_panel.destroy()
+            self._penalty_panel = None
         self._showing = False
         self.withdraw()
 
@@ -267,9 +277,48 @@ class OverlayApp(customtkinter.CTk):
     def _on_answer(self, spec: ChallengeSpec, given_answer: str) -> None:
         if not self._showing:
             return
+        correct = spec.is_correct(given_answer)
         self.engine.record_attempt(spec, given_answer)
-        self._hide_overlay()
+        # O intervalo começa na resposta; se ele vencer durante a espera, o
+        # próximo desafio aguarda o fim do bloqueio.
         self._schedule_next()
+        if correct:
+            self._hide_overlay()
+            return
+        self._show_penalty()
+
+    def _show_penalty(self, seconds: int | None = None) -> None:
+        if self._panel is not None:
+            self._panel.destroy()
+            self._panel = None
+        if seconds is None:
+            settings = self.engine.settings()
+            seconds = (
+                DEBUG_WRONG_ANSWER_WAIT_SECONDS
+                if self.config.debug
+                else settings.wrong_answer_wait_seconds
+            )
+        LOGGER.info("Espera após resposta errada exibida por %s s", seconds)
+        self._penalty_panel = CountdownPanel(
+            self,
+            seconds=seconds,
+            title="Quase! Aguarde um pouco.",
+            subtitle="Leia a pergunta com calma. Você poderá responder quando o tempo acabar.",
+            fg_color=WRONG_CARD_COLOR,
+            on_finished=self._hide_overlay,
+        )
+        self._penalty_panel.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+            relwidth=PANEL_RELWIDTH,
+            relheight=PANEL_RELHEIGHT,
+        )
+        self._apply_geometry()
+        self.deiconify()
+        self._raise_above()
+        self.focus_force()
+        self.after(50, self._raise_above)
 
     def _on_adult_pause(self) -> None:
         if self._bathroom_visible:

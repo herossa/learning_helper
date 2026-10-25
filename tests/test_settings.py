@@ -17,6 +17,7 @@ from learning_helper.config import (
     MIN_INTERVAL_SECONDS,
     MODULE_ORDER,
     UNLOCK_THRESHOLD,
+    WRONG_ANSWER_WAIT_SECONDS,
 )
 from learning_helper.settings import Settings
 
@@ -33,6 +34,7 @@ def test_defaults_match_config_constants() -> None:
     assert settings.level_down_threshold == LEVEL_DOWN_THRESHOLD
     assert settings.max_level == MAX_LEVEL
     assert settings.feedback_ms == FEEDBACK_MS
+    assert settings.wrong_answer_wait_seconds == WRONG_ANSWER_WAIT_SECONDS
     assert settings.adult_pause_seconds == ADULT_PAUSE_SECONDS
     assert settings.bathroom_interval_seconds == BATHROOM_INTERVAL_SECONDS
     assert settings.bathroom_duration_seconds == BATHROOM_DURATION_SECONDS
@@ -83,6 +85,7 @@ def test_normalized_clamps_out_of_range_values() -> None:
         level_down_threshold=-1.0,
         max_level=99,
         feedback_ms=1,
+        wrong_answer_wait_seconds=1,
         adult_pause_seconds=1,
         bathroom_interval_seconds=1,
         bathroom_duration_seconds=10_000,
@@ -98,10 +101,24 @@ def test_normalized_clamps_out_of_range_values() -> None:
     assert loaded.level_down_threshold == 0.0
     assert loaded.max_level == MAX_LEVEL
     assert loaded.feedback_ms == 500
+    assert loaded.wrong_answer_wait_seconds == 10
     assert loaded.adult_pause_seconds == 60
     assert loaded.bathroom_interval_seconds == 5 * 60
     assert loaded.bathroom_duration_seconds == 300
     assert loaded.enabled_modules == MODULE_ORDER
+
+
+def test_wrong_answer_wait_is_clamped() -> None:
+    assert (
+        Settings(wrong_answer_wait_seconds=1).normalized()
+        .wrong_answer_wait_seconds
+        == 10
+    )
+    assert (
+        Settings(wrong_answer_wait_seconds=10_000).normalized()
+        .wrong_answer_wait_seconds
+        == 300
+    )
 
 
 def test_normalized_keeps_minimum_below_maximum() -> None:
@@ -149,11 +166,12 @@ def test_validate_reports_each_invalid_field() -> None:
         accuracy_window=1,
         max_level=0,
         feedback_ms=1,
+        wrong_answer_wait_seconds=1,
         adult_pause_seconds=1,
         bathroom_interval_seconds=1,
         bathroom_duration_seconds=1,
     ).validate()
-    assert len(errors) >= 8
+    assert len(errors) >= 10
 
 
 def test_from_json_unknown_keeps_defaults() -> None:

@@ -122,6 +122,7 @@ def test_challenge_panel_text_mode_submits_typed_answer() -> None:
         spec,
         on_answer=lambda _spec, given: answers.append(given),
         feedback_ms=10,
+        answer_delay_ms=0,
     )
     panel.pack()
     root.update()
@@ -181,6 +182,7 @@ def test_challenge_panel_accepts_any_correct_color() -> None:
         spec,
         on_answer=lambda _spec, given: answers.append(given),
         feedback_ms=10,
+        answer_delay_ms=0,
     )
     panel.pack()
     root.update()
@@ -194,6 +196,191 @@ def test_challenge_panel_accepts_any_correct_color() -> None:
         time.sleep(0.01)
     assert answers == ["red"]
     root.destroy()
+
+
+def test_challenge_panel_keeps_answers_disabled_until_delay() -> None:
+    import customtkinter
+
+    from learning_helper.adaptive.models import ChallengeChoice, ChallengeSpec
+    from learning_helper.overlay.host import GUIDANCE_TEXT, ChallengePanel
+
+    try:
+        root = customtkinter.CTk()
+    except tkinter.TclError:
+        pytest.skip("sem display disponível")
+    root.withdraw()
+    answers: list[str] = []
+    spec = ChallengeSpec(
+        module_id="colors",
+        level=1,
+        prompt="Clique na cor azul.",
+        choices=(
+            ChallengeChoice(id="red", label="Vermelho"),
+            ChallengeChoice(id="blue", label="Azul"),
+        ),
+        correct_id="blue",
+    )
+    panel = ChallengePanel(
+        root,
+        spec,
+        on_answer=lambda _spec, given: answers.append(given),
+        feedback_ms=10,
+        answer_delay_ms=200,
+    )
+    panel.pack()
+    root.update()
+
+    assert panel._locked is True
+    assert panel._guidance.cget("text") == GUIDANCE_TEXT
+    assert all(button.cget("state") == "disabled" for button in panel._buttons)
+
+    panel._choose("blue")
+    assert answers == []
+
+    deadline = time.monotonic() + 2
+    while panel._locked and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.01)
+    assert panel._locked is False
+    assert all(button.cget("state") == "normal" for button in panel._buttons)
+
+    panel._choose("blue")
+    deadline = time.monotonic() + 2
+    while not answers and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.01)
+    assert answers == ["blue"]
+    root.destroy()
+
+
+def test_challenge_panel_text_input_waits_before_submitting() -> None:
+    import customtkinter
+
+    from learning_helper.adaptive.models import ChallengeSpec
+    from learning_helper.overlay.host import ChallengePanel
+
+    try:
+        root = customtkinter.CTk()
+    except tkinter.TclError:
+        pytest.skip("sem display disponível")
+    root.withdraw()
+    answers: list[str] = []
+    spec = ChallengeSpec(
+        module_id="compare",
+        level=1,
+        prompt="Qual é o maior?\n\n7  ou  3",
+        choices=(),
+        correct_id="7",
+        input_mode="text",
+    )
+    panel = ChallengePanel(
+        root,
+        spec,
+        on_answer=lambda _spec, given: answers.append(given),
+        feedback_ms=10,
+        answer_delay_ms=200,
+    )
+    panel.pack()
+    root.update()
+
+    assert panel._entry is not None
+    assert panel._entry.cget("state") == "disabled"
+    panel._submit_text()
+    assert answers == []
+    assert panel._hint is not None
+    assert panel._hint.cget("text") == ""
+
+    deadline = time.monotonic() + 2
+    while panel._locked and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.01)
+    assert panel._entry.cget("state") == "normal"
+
+    panel._entry.insert(0, "7")
+    panel._submit_text()
+    deadline = time.monotonic() + 2
+    while not answers and time.monotonic() < deadline:
+        root.update()
+        time.sleep(0.01)
+    assert answers == ["7"]
+    root.destroy()
+
+
+def test_overlay_wrong_answer_shows_wait_before_hiding(tmp_path, monkeypatch) -> None:
+    from learning_helper.overlay import main_window
+
+    monkeypatch.setattr(main_window, "DEBUG_WRONG_ANSWER_WAIT_SECONDS", 1)
+    store = Store(tmp_path / "learning_helper.db")
+    engine = AdaptiveEngine(store, rng=random.Random(0))
+    try:
+        try:
+            app = OverlayApp(engine, RuntimeConfig(debug=True))
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        app._show_challenge()
+        app.update()
+        assert app._panel is not None
+
+        spec = app._panel._spec
+        wrong = next(
+            choice.id for choice in spec.choices if not spec.is_correct(choice.id)
+        )
+        app._panel._feedback_ms = 10
+        app._panel._locked = False
+        app._panel._set_answers_enabled(True)
+        app._panel._choose(wrong)
+
+        deadline = time.monotonic() + 2
+        while app._penalty_panel is None and time.monotonic() < deadline:
+            app.update()
+            time.sleep(0.01)
+        assert app._penalty_panel is not None
+        assert app._panel is None
+        assert app._showing is True
+        assert store.count_attempts() == 1
+        assert store.recent_attempts(spec.module_id, 1)[0].is_correct is False
+
+        deadline = time.monotonic() + 3
+        while app._showing and time.monotonic() < deadline:
+            app.update()
+            time.sleep(0.01)
+        assert app._showing is False
+        assert app._penalty_panel is None
+        app.destroy()
+    finally:
+        store.close()
+
+
+def test_overlay_correct_answer_hides_without_wait(tmp_path) -> None:
+    store = Store(tmp_path / "learning_helper.db")
+    engine = AdaptiveEngine(store, rng=random.Random(0))
+    try:
+        try:
+            app = OverlayApp(engine, RuntimeConfig(debug=True))
+        except tkinter.TclError:
+            pytest.skip("sem display disponível")
+        app._show_challenge()
+        app.update()
+        assert app._panel is not None
+
+        spec = app._panel._spec
+        app._panel._feedback_ms = 10
+        app._panel._locked = False
+        app._panel._set_answers_enabled(True)
+        app._panel._choose(spec.correct_id)
+
+        deadline = time.monotonic() + 2
+        while app._showing and time.monotonic() < deadline:
+            app.update()
+            time.sleep(0.01)
+        assert app._showing is False
+        assert app._panel is None
+        assert app._penalty_panel is None
+        assert store.count_attempts() == 1
+        assert store.recent_attempts(spec.module_id, 1)[0].is_correct is True
+        app.destroy()
+    finally:
+        store.close()
 
 
 def test_settings_window_saves_and_completes_onboarding(tmp_path) -> None:

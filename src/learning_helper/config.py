@@ -36,6 +36,13 @@ ADULT_PAUSE_SECONDS = 30 * 60
 DEBUG_INTERVAL_SECONDS = 10
 FEEDBACK_MS = 1000
 
+# Depois de uma resposta errada, a tela fica bloqueada com uma contagem
+# regressiva antes de liberar o computador novamente.
+WRONG_ANSWER_WAIT_SECONDS = 60
+DEBUG_WRONG_ANSWER_WAIT_SECONDS = 10
+# As alternativas só podem ser acionadas depois deste tempo.
+ANSWER_UNLOCK_DELAY_MS = 5 * 1000
+
 # Lembrete de banheiro: não é desafio, apenas bloqueia a tela por um tempo.
 BATHROOM_INTERVAL_SECONDS = 30 * 60
 BATHROOM_DURATION_SECONDS = 60

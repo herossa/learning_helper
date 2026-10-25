@@ -14,6 +14,8 @@ Tudo funciona localmente, os dados ficam na máquina e os intervalos, módulos e
 
 - 7 módulos: cores, cores diferentes, comparação, contas, problemas, perguntas e leitura
 - Intervalo adaptativo entre 1 e 5 minutos, ajustado pelas respostas
+- Resposta errada bloqueia a tela com contagem regressiva (1 minuto por padrão)
+- Alternativas liberadas após 5 segundos, com lembrete para ler com atenção
 - Tela de configurações na primeira execução e depois pelo atalho/CLI
 - Estatísticas no navegador (tentativas, acertos, níveis e evolução)
 - Lembrete de banheiro a cada 30 minutos, bloqueando a tela por 1 minuto
@@ -109,7 +111,11 @@ Para alternar o autostart depois:
 
 ## Como funciona
 
-O intervalo é adaptativo: por padrão, entre **1 e 5 minutos**, começando em **3 minutos**; cada resposta certa soma 30 segundos e cada resposta errada subtrai 30 segundos, sempre respeitando os limites. Esses valores, os limiares de nível e o feedback são configuráveis. Depois de responder há um feedback curto ("Certo!" ou "Quase! Olhe com calma da próxima vez.") e o computador é liberado.
+O intervalo é adaptativo: por padrão, entre **1 e 5 minutos**, começando em **3 minutos**; cada resposta certa soma 30 segundos e cada resposta errada subtrai 30 segundos, sempre respeitando os limites. Esses valores, os limiares de nível e o feedback são configuráveis.
+
+As alternativas e o campo de resposta só são liberados **5 segundos** depois que o desafio aparece. Durante esse tempo, a tela mostra o lembrete **“Leia com atenção antes de responder.”** e ignora cliques, Enter e demais tentativas de envio.
+
+Depois de responder há um feedback curto. No acerto ("Certo!") o computador é liberado. No erro ("Quase!") aparece uma tela de espera com contagem regressiva, no mesmo estilo do lembrete de banheiro: por padrão, a criança precisa aguardar **1 minuto** antes de voltar a usar o computador. A duração pode ser ajustada em Configurações. O próximo desafio é agendado a partir do momento da resposta e, se o intervalo vencer durante a espera, ele só aparece quando a contagem terminar.
 
 Na **primeira execução**, a tela de configurações aparece antes de qualquer desafio. O primeiro desafio só é agendado depois do intervalo configurado (3 minutos por padrão); fechar a tela sem salvar usa os padrões e marca a configuração como concluída.
 
@@ -166,6 +172,7 @@ O que pode ser ajustado:
 - intervalo inicial, mínimo, máximo e passo por resposta;
 - janela de avaliação, limiares de desbloqueio/nível e nível máximo;
 - duração do feedback;
+- espera após resposta errada (padrão: 1 minuto);
 - duração da pausa do adulto;
 - lembrete de banheiro (ligado/desligado, intervalo e duração);
 - módulos ativos (Cores, Cores diferentes, Comparação, Contas, Problemas, Perguntas e Leitura);
@@ -231,14 +238,15 @@ O painel abre uma janela pequena com **Encerrar**; fechá-la desliga o servidor 
 
 ## Atalho do adulto
 
-`Control+Alt+Shift+P` fecha o desafio **sem gravar tentativa** e pausa novos bloqueios por **30 minutos**. Não aparece na tela da criança. Esc e Alt+F4 não fecham o desafio.
+`Control+Alt+Shift+P` fecha o desafio (sem gravar tentativa) ou a espera por resposta errada e pausa novos bloqueios por **30 minutos**. Não aparece na tela da criança. Esc e Alt+F4 não fecham o desafio nem a contagem.
 
 ## Lembrete de banheiro
 
 A cada **30 minutos** aparece um aviso de banheiro que bloqueia a tela por **1 minuto**, com uma imagem e uma contagem regressiva. Não há nada para responder: ele fecha sozinho ao fim da contagem.
 
 - É independente dos desafios: não mexe em níveis, desbloqueio nem no histórico de tentativas.
-- Se um desafio estiver na tela, o lembrete espera o desafio terminar (e o desafio também espera o lembrete sair).
+- Usa o mesmo tipo de contagem regressiva da espera por resposta errada, mas os dois bloqueios são independentes.
+- Se um desafio ou uma espera por resposta errada estiver na tela, o lembrete espera o bloqueio terminar (e o desafio também espera o lembrete sair).
 - Durante a pausa do adulto, o lembrete também fica em espera.
 - `Control+Alt+Shift+P` fecha o lembrete na hora e mantém a pausa de 30 minutos.
 

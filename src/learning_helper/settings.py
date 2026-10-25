@@ -26,6 +26,7 @@ from learning_helper.config import (
     MIN_INTERVAL_SECONDS,
     MODULE_ORDER,
     UNLOCK_THRESHOLD,
+    WRONG_ANSWER_WAIT_SECONDS,
 )
 
 INTERVAL_FLOOR_SECONDS = 60
@@ -40,6 +41,8 @@ MAX_LEVEL_FLOOR = 1
 MAX_LEVEL_CEILING = MAX_LEVEL
 FEEDBACK_FLOOR_MS = 500
 FEEDBACK_CEILING_MS = 3000
+WRONG_ANSWER_WAIT_FLOOR_SECONDS = 10
+WRONG_ANSWER_WAIT_CEILING_SECONDS = 300
 ADULT_PAUSE_FLOOR_SECONDS = 60
 ADULT_PAUSE_CEILING_SECONDS = 120 * 60
 BATHROOM_INTERVAL_FLOOR_SECONDS = 5 * 60
@@ -82,6 +85,7 @@ class Settings:
     level_down_threshold: float = LEVEL_DOWN_THRESHOLD
     max_level: int = MAX_LEVEL
     feedback_ms: int = FEEDBACK_MS
+    wrong_answer_wait_seconds: int = WRONG_ANSWER_WAIT_SECONDS
     adult_pause_seconds: int = ADULT_PAUSE_SECONDS
     bathroom_reminder_enabled: bool = True
     bathroom_interval_seconds: int = BATHROOM_INTERVAL_SECONDS
@@ -138,6 +142,11 @@ class Settings:
                 self.feedback_ms,
                 FEEDBACK_FLOOR_MS,
                 FEEDBACK_CEILING_MS,
+            ),
+            wrong_answer_wait_seconds=_clamp(
+                self.wrong_answer_wait_seconds,
+                WRONG_ANSWER_WAIT_FLOOR_SECONDS,
+                WRONG_ANSWER_WAIT_CEILING_SECONDS,
             ),
             adult_pause_seconds=_clamp(
                 self.adult_pause_seconds,
@@ -203,6 +212,16 @@ class Settings:
             errors.append(
                 f"O feedback deve durar entre {FEEDBACK_FLOOR_MS / 1000:.1f} e "
                 f"{FEEDBACK_CEILING_MS / 1000:.1f} segundos."
+            )
+        if not (
+            WRONG_ANSWER_WAIT_FLOOR_SECONDS
+            <= self.wrong_answer_wait_seconds
+            <= WRONG_ANSWER_WAIT_CEILING_SECONDS
+        ):
+            errors.append(
+                "A espera após resposta errada deve ficar entre "
+                f"{WRONG_ANSWER_WAIT_FLOOR_SECONDS} e "
+                f"{WRONG_ANSWER_WAIT_CEILING_SECONDS} segundos."
             )
         if not (
             ADULT_PAUSE_FLOOR_SECONDS
