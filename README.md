@@ -368,7 +368,7 @@ make apresentacao   # gera a apresentação em docs/apresentacao
 
 As capturas precisam de uma sessão gráfica; o painel de estatísticas usa Firefox/geckodriver e o Selenium é baixado só durante a execução.
 
-Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make packages`) usam a versão de `src/learning_helper/__init__.py` e podem ser sobrescritos com `make packages VERSION=0.8.0`.
+Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make packages`) usam a versão de `src/learning_helper/__init__.py` e podem ser sobrescritos com `make packages VERSION=0.8.1`.
 
 No Windows, o `make` não vem instalado por padrão: use o Git Bash/MSYS2 (ou instale com `choco install make`). Os comandos com `uv` mostrados acima continuam funcionando normalmente.
 
@@ -475,13 +475,13 @@ uv sync --frozen --group dev
 uv run pyinstaller packaging/learning-helper.spec --noconfirm
 
 # AppImage (precisa do appimagetool no PATH ou em APPIMAGETOOL)
-APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.8.0
+APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.8.1
 
 # pacote por usuário com install/uninstall
-packaging/linux/build-user-tarball.sh 0.8.0
+packaging/linux/build-user-tarball.sh 0.8.1
 
 # teste de instalação/desinstalação em HOME temporário
-packaging/linux/test-user-install.sh dist/LearningHelper-0.8.0-linux-x86_64.tar.gz
+packaging/linux/test-user-install.sh dist/LearningHelper-0.8.1-linux-x86_64.tar.gz
 ```
 
 Saídas em `dist/`: `LearningHelper-<versão>-x86_64.AppImage` e `LearningHelper-<versão>-linux-x86_64.tar.gz`.
@@ -491,7 +491,7 @@ Se o `appimagetool` for o próprio AppImage, rode:
 ```bash
 APPIMAGETOOL=./appimagetool-x86_64.AppImage \
 APPIMAGETOOL_ARGS=--appimage-extract-and-run \
-packaging/linux/build-appimage.sh 0.8.0
+packaging/linux/build-appimage.sh 0.8.1
 ```
 
 ### Windows
@@ -524,15 +524,15 @@ uv run python packaging/make_bathroom_image.py
 O workflow `.github/workflows/package.yml` roda em PRs e pushes que mexem em `src/`, `packaging/` ou dependências. Para publicar:
 
 ```bash
-git tag v0.8.0
-git push origin v0.8.0
+git tag v0.8.1
+git push origin v0.8.1
 ```
 
-O job de release confere se a tag (`v0.8.0`) bate com `__version__` (`0.8.0`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário, o `SHA256SUMS` e o **`latest.json`**. O manifesto é gerado por `packaging/make_update_manifest.py` a partir dos próprios artefatos e contém versão, nome, URL e SHA-256 de cada pacote; é dele que o updater lê a release mais recente.
+O job de release confere se a tag (`v0.8.1`) bate com `__version__` (`0.8.1`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário, o `SHA256SUMS` e o **`latest.json`**. O manifesto é gerado por `packaging/make_update_manifest.py` a partir dos próprios artefatos e contém versão, nome, URL e SHA-256 de cada pacote; é dele que o updater lê a release mais recente.
 
 Para testar o manifesto localmente depois de gerar os pacotes:
 
 ```bash
 uv run python packaging/make_update_manifest.py \
-  --version 0.8.0 --dist dist --tag v0.8.0
+  --version 0.8.1 --dist dist --tag v0.8.1
 ```
