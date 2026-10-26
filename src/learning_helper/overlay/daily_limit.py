@@ -20,8 +20,9 @@ class DailyLimitPanel(customtkinter.CTkFrame):
         self,
         parent,
         *,
-        limit_seconds: int,
+        base_limit_seconds: int,
         used_seconds: int,
+        extension_seconds: int,
         on_shutdown: Callable[[], None],
         on_extend: Callable[[], None],
     ) -> None:
@@ -35,12 +36,18 @@ class DailyLimitPanel(customtkinter.CTkFrame):
             justify="center",
             wraplength=700,
         ).pack(pady=(54, 12))
+        summary = [
+            f"Limite diário: {format_duration(base_limit_seconds)}.",
+            f"Tempo usado hoje: {format_duration(used_seconds)}.",
+        ]
+        if extension_seconds > 0:
+            summary.append(
+                "Tempo extra desta sessão: "
+                f"{format_duration(extension_seconds)}."
+            )
         customtkinter.CTkLabel(
             self,
-            text=(
-                f"Limite de hoje: {format_duration(limit_seconds)}.\n"
-                f"Tempo usado: {format_duration(used_seconds)}."
-            ),
+            text="\n".join(summary),
             font=("Arial", 22),
             text_color=TEXT_MUTED,
             justify="center",

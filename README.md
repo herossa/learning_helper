@@ -267,7 +267,7 @@ O app soma o tempo em que fica aberto e, ao chegar ao limite diário (por padrã
 Enquanto o bloqueio diário está na tela, esse tempo **não** conta como uso. A tela oferece duas ações:
 
 - **Desligar computador** — usa o desligamento do sistema (`systemctl poweroff` no Linux e `shutdown /s` no Windows). Se o comando falhar, a tela mostra o erro e continua aberta.
-- **Estender tempo** — pede a senha de autorização e uma quantidade de minutos (1 a 240). A extensão vale **somente até reiniciar o app ou o computador** e não altera o limite configurado.
+- **Estender tempo** — pede a senha de autorização e uma quantidade de minutos (1 a 240). A extensão vale **somente para a sessão atual**: ao reiniciar o app ou o computador, é preciso fazer um novo pedido. Ela não altera o limite configurado e libera os minutos pedidos a partir do tempo já usado, mesmo que o uso esteja acima do limite diário.
 
 A senha é cadastrada em **Configurações → Autorização para estender tempo** e guardada como hash com salt, nunca em texto puro. Sem senha cadastrada, o botão **Estender tempo** informa que a autorização não foi configurada. A senha pode ser trocada ou removida na mesma seção.
 
@@ -310,7 +310,7 @@ uv run python -m learning_helper --db /caminho/arquivo.db
 - **AppImage não abre por falta de FUSE** — rode com `--appimage-extract-and-run`.
 - **Nada acontece ao abrir o app de novo** — é a trava de instância única: a segunda cópia detecta o `app.lock` e encerra sem abrir outra janela.
 - **O overlay não aparece** — pode ser a pausa do adulto ativa (30 minutos), o primeiro intervalo ainda contando ou a instância antiga ainda rodando.
-- **O bloqueio diário aparece logo ao abrir o app** — é esperado se o tempo já usado hoje chegou ao limite; a contagem fica no banco e só reinicia à meia-noite local. Use **Estender tempo** com a senha ou desligue o computador.
+- **O bloqueio diário aparece logo ao abrir o app** — é esperado se o tempo já usado hoje chegou ao limite; a contagem fica no banco e só reinicia à meia-noite local. As extensões da sessão anterior não são mantidas, então peça uma nova extensão (ela libera os minutos pedidos a partir do uso atual) ou desligue o computador.
 - **Não consigo estender o tempo diário** — cadastre uma senha em **Configurações → Autorização para estender tempo**. Sem senha, a extensão fica indisponível.
 - **As estatísticas não abrem** — veja o `stats.log` na mesma pasta; o servidor usa uma porta local aleatória e o navegador padrão.
 - **Windows: aviso do SmartScreen** — o instalador não é assinado; use **Mais informações → Executar assim mesmo**.
