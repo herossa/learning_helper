@@ -111,6 +111,91 @@ def test_extension_is_in_memory_and_can_be_exhausted(store: Store) -> None:
     assert restarted.is_exhausted is True
 
 
+def test_extension_grants_requested_time_above_daily_limit(store: Store) -> None:
+    """Depois de reiniciar, a extensão vale a partir do uso já acumulado."""
+    clock = FakeClock(datetime(2026, 10, 25, 10, 0))
+    day = local_day_key(clock.now())
+    used = 6 * 60 * 60 + 30 * 60
+    limit = 3 * 60 * 60 + 30 * 60
+    store.add_daily_usage(day, used)
+
+    usage = DailyUsage(
+        store,
+        limit,
+        now=clock.now,
+        monotonic=clock.monotonic,
+        flush_seconds=1,
+    )
+
+    assert usage.total_allowed_seconds == used
+    assert usage.is_exhausted is True
+
+    usage.extend(30)
+    assert usage.extension_seconds == 30 * 60
+    assert usage.remaining_seconds == 30 * 60
+    assert usage.is_exhausted is False
+
+    clock.monotonic_value += 30 * 60
+    usage.tick(active=True)
+    assert usage.is_exhausted is True
+    assert store.get_daily_usage(day) == used + 30 * 60
+
+    restarted = DailyUsage(
+        store,
+        limit,
+        now=clock.now,
+        monotonic=clock.monotonic,
+    )
+    assert restarted.extension_seconds == 0
+    assert restarted.is_exhausted is True
+
+    restarted.extend(30)
+    assert restarted.remaining_seconds == 30 * 60
+    assert restarted.is_exhausted is False
+
+
+def test_extension_grants_requested_time_after_usage_overruns(store: Store) -> None:
+    clock = FakeClock(datetime(2026, 10, 25, 10, 0))
+    store.add_daily_usage(local_day_key(clock.now()), 2 * 60 * 60)
+    usage = DailyUsage(
+        store,
+        2 * 60 * 60,
+        now=clock.now,
+        monotonic=clock.monotonic,
+        flush_seconds=1,
+    )
+    assert usage.is_exhausted is True
+    usage.extend(5)
+
+    # A pausa do adulto libera a tela e o tempo continua contando; a extensão
+    # anterior pode ser consumida e ultrapassada antes do próximo pedido.
+    clock.monotonic_value += 10 * 60
+    usage.tick(active=True)
+    assert usage.used_seconds == 2 * 60 * 60 + 10 * 60
+    assert usage.is_exhausted is True
+
+    usage.extend(5)
+    assert usage.extension_seconds == 10 * 60
+    assert usage.remaining_seconds == 5 * 60
+    assert usage.is_exhausted is False
+
+
+def test_extension_adds_to_remaining_time(store: Store) -> None:
+    clock = FakeClock(datetime(2026, 10, 25, 10, 0))
+    store.add_daily_usage(local_day_key(clock.now()), 60 * 60)
+    usage = DailyUsage(
+        store,
+        2 * 60 * 60,
+        now=clock.now,
+        monotonic=clock.monotonic,
+    )
+
+    assert usage.remaining_seconds == 60 * 60
+    usage.extend(15)
+    assert usage.extension_seconds == 15 * 60
+    assert usage.remaining_seconds == 75 * 60
+
+
 def test_midnight_resets_usage_and_extension(store: Store) -> None:
     clock = FakeClock(datetime(2026, 10, 25, 23, 59))
     store.add_daily_usage(local_day_key(clock.now()), 100)

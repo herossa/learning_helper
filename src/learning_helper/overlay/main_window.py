@@ -408,8 +408,9 @@ class OverlayApp(customtkinter.CTk):
             self._daily_limit_panel.destroy()
         self._daily_limit_panel = DailyLimitPanel(
             self,
-            limit_seconds=self._daily_usage.total_allowed_seconds,
+            base_limit_seconds=self._daily_usage.daily_limit_seconds,
             used_seconds=self._daily_usage.used_seconds,
+            extension_seconds=self._daily_usage.extension_seconds,
             on_shutdown=self._on_daily_shutdown,
             on_extend=self._on_daily_extend,
         )
@@ -503,7 +504,14 @@ class OverlayApp(customtkinter.CTk):
                 f"{EXTENSION_MINUTES_MAX}."
             )
         self._daily_usage.extend(minutes)
-        LOGGER.info("Tempo diário estendido em %s minutos", minutes)
+        LOGGER.info(
+            "Tempo diário estendido em %s minutos (usado %s s, "
+            "limite efetivo %s s, restante %s s)",
+            minutes,
+            self._daily_usage.used_seconds,
+            self._daily_usage.total_allowed_seconds,
+            self._daily_usage.remaining_seconds,
+        )
         self._hide_daily_limit(resume=True)
         return None
 

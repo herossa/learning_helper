@@ -30,6 +30,10 @@ class DailyUsage:
 
     A extensão fica apenas em memória: ela vale até o app/computador
     reiniciar ou até a virada do dia, sem alterar o limite configurado.
+    O teto efetivo parte do maior valor entre o limite configurado e o tempo
+    já usado e cresce pelos minutos pedidos. Assim, cada extensão libera os
+    minutos solicitados a partir do uso acumulado, mesmo que ele já tenha
+    passado do limite (por exemplo, depois de reiniciar o computador).
     """
 
     def __init__(
@@ -50,6 +54,7 @@ class DailyUsage:
         self._used_seconds = float(self._store.get_daily_usage(self._day))
         self._pending_seconds = 0.0
         self._extension_seconds = 0
+        self._allowed_seconds = max(self.daily_limit_seconds, int(self._used_seconds))
         self._last_monotonic = self._monotonic()
 
     @property
@@ -66,7 +71,7 @@ class DailyUsage:
 
     @property
     def total_allowed_seconds(self) -> int:
-        return self.daily_limit_seconds + self._extension_seconds
+        return self._allowed_seconds
 
     @property
     def remaining_seconds(self) -> int:
@@ -87,6 +92,9 @@ class DailyUsage:
             self._used_seconds = float(self._store.get_daily_usage(day))
             self._pending_seconds = 0.0
             self._extension_seconds = 0
+            self._allowed_seconds = max(
+                self.daily_limit_seconds, int(self._used_seconds)
+            )
             self._last_monotonic = current
             return True
 
@@ -108,7 +116,12 @@ class DailyUsage:
         self._pending_seconds -= seconds
 
     def extend(self, minutes: int) -> None:
+        """Libera os minutos pedidos a partir do uso acumulado."""
         value = int(minutes)
         if value <= 0:
             raise ValueError("A extensão deve ter pelo menos 1 minuto.")
-        self._extension_seconds += value * 60
+        requested = value * 60
+        self._allowed_seconds = (
+            max(self._allowed_seconds, self.used_seconds) + requested
+        )
+        self._extension_seconds += requested
