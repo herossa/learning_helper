@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from learning_helper.persistence.db import Store
+from learning_helper.settings import Settings
 from learning_helper.usage import DailyUsage, format_duration, local_day_key
 
 
@@ -194,6 +195,164 @@ def test_extension_adds_to_remaining_time(store: Store) -> None:
     usage.extend(15)
     assert usage.extension_seconds == 15 * 60
     assert usage.remaining_seconds == 75 * 60
+
+
+def test_extension_is_session_only_and_does_not_change_daily_limit(
+    store: Store,
+) -> None:
+    limit = 2 * 60 * 60
+    store.save_settings(Settings(daily_usage_limit_seconds=limit))
+    clock = FakeClock(datetime(2026, 10, 25, 10, 0))
+    day = local_day_key(clock.now())
+    store.add_daily_usage(day, limit)
+
+    usage = DailyUsage(
+        store,
+        limit,
+        now=clock.now,
+        monotonic=clock.monotonic,
+        flush_seconds=1,
+    )
+
+    assert usage.used_seconds == limit
+    assert usage.extension_seconds == 0
+    assert usage.total_allowed_seconds == limit
+    assert usage.remaining_seconds == 0
+    assert usage.is_exhausted is True
+
+    usage.extend(30)
+
+    assert usage.extension_seconds == 30 * 60
+    assert usage.total_allowed_seconds == limit + 30 * 60
+    assert usage.remaining_seconds == 30 * 60
+    assert usage.is_exhausted is False
+    # A extensão só vira tempo usado depois de ser consumida.
+    assert store.get_daily_usage(day) == limit
+    assert store.get_settings().daily_usage_limit_seconds == limit
+
+    clock.monotonic_value += 30 * 60
+    usage.tick(active=True)
+
+    assert usage.used_seconds == limit + 30 * 60
+    assert store.get_daily_usage(day) == limit + 30 * 60
+    assert usage.remaining_seconds == 0
+    assert usage.is_exhausted is True
+
+    # Reiniciar o app/computador descarta a extensão, mas mantém o uso no banco.
+    restart_clock = FakeClock(clock.moment)
+    restarted = DailyUsage(
+        store,
+        limit,
+        now=restart_clock.now,
+        monotonic=restart_clock.monotonic,
+    )
+
+    assert restarted.extension_seconds == 0
+    assert restarted.daily_limit_seconds == limit
+    assert restarted.used_seconds == limit + 30 * 60
+    assert restarted.total_allowed_seconds == limit + 30 * 60
+    assert restarted.remaining_seconds == 0
+    assert restarted.is_exhausted is True
+    assert store.get_settings().daily_usage_limit_seconds == limit
+    assert format_duration(restarted.daily_limit_seconds) == "2 h"
+    assert format_duration(restarted.used_seconds) == "2 h 30 min"
+
+    restarted.extend(30)
+
+    assert restarted.extension_seconds == 30 * 60
+    assert restarted.total_allowed_seconds == limit + 60 * 60
+    assert restarted.remaining_seconds == 30 * 60
+    assert restarted.is_exhausted is False
+    assert store.get_settings().daily_usage_limit_seconds == limit
+    assert store.get_daily_usage(day) == limit + 30 * 60
+
+
+def test_new_extension_after_restart_grants_30_minutes_above_overrun(
+    store: Store,
+) -> None:
+    limit = 2 * 60 * 60
+    overrun = limit + 30 * 60
+    store.save_settings(Settings(daily_usage_limit_seconds=limit))
+    clock = FakeClock(datetime(2026, 10, 25, 10, 0))
+    day = local_day_key(clock.now())
+    store.add_daily_usage(day, overrun)
+
+    usage = DailyUsage(
+        store,
+        limit,
+        now=clock.now,
+        monotonic=clock.monotonic,
+        flush_seconds=1,
+    )
+
+    assert usage.used_seconds == overrun
+    assert usage.extension_seconds == 0
+    assert usage.total_allowed_seconds == overrun
+    assert usage.remaining_seconds == 0
+    assert usage.is_exhausted is True
+
+    usage.extend(30)
+
+    assert usage.extension_seconds == 30 * 60
+    assert usage.total_allowed_seconds == overrun + 30 * 60
+    assert usage.remaining_seconds == 30 * 60
+    assert usage.is_exhausted is False
+    assert store.get_daily_usage(day) == overrun
+    assert store.get_settings().daily_usage_limit_seconds == limit
+
+    clock.monotonic_value += 30 * 60
+    usage.tick(active=True)
+
+    assert usage.used_seconds == overrun + 30 * 60
+    assert store.get_daily_usage(day) == overrun + 30 * 60
+    assert usage.remaining_seconds == 0
+    assert usage.is_exhausted is True
+
+    # A extensão consumida não volta após reiniciar o app/computador.
+    restart_clock = FakeClock(clock.moment)
+    restarted = DailyUsage(
+        store,
+        limit,
+        now=restart_clock.now,
+        monotonic=restart_clock.monotonic,
+    )
+
+    assert restarted.extension_seconds == 0
+    assert restarted.daily_limit_seconds == limit
+    assert restarted.used_seconds == 3 * 60 * 60
+    assert restarted.total_allowed_seconds == 3 * 60 * 60
+    assert restarted.remaining_seconds == 0
+    assert restarted.is_exhausted is True
+    assert store.get_settings().daily_usage_limit_seconds == limit
+    assert format_duration(restarted.daily_limit_seconds) == "2 h"
+    assert format_duration(restarted.used_seconds) == "3 h"
+
+    restarted.extend(30)
+
+    assert restarted.extension_seconds == 30 * 60
+    assert restarted.total_allowed_seconds == 3 * 60 * 60 + 30 * 60
+    assert restarted.remaining_seconds == 30 * 60
+    assert restarted.is_exhausted is False
+    assert store.get_settings().daily_usage_limit_seconds == limit
+    assert store.get_daily_usage(day) == 3 * 60 * 60
+
+    # A nova extensão libera os 30 minutos completos, mesmo acima do limite.
+    restart_clock.monotonic_value += 30 * 60 - 1
+    restarted.tick(active=True)
+
+    assert restarted.remaining_seconds == 1
+    assert restarted.is_exhausted is False
+    assert store.get_daily_usage(day) == 3 * 60 * 60 + 30 * 60 - 1
+
+    restart_clock.monotonic_value += 1
+    restarted.tick(active=True)
+    restarted.flush()
+
+    assert restarted.remaining_seconds == 0
+    assert restarted.is_exhausted is True
+    assert store.get_daily_usage(day) == 3 * 60 * 60 + 30 * 60
+    assert format_duration(restarted.daily_limit_seconds) == "2 h"
+    assert format_duration(restarted.used_seconds) == "3 h 30 min"
 
 
 def test_midnight_resets_usage_and_extension(store: Store) -> None:
