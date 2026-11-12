@@ -299,8 +299,11 @@ def test_apply_windows_writes_wrapper_script(tmp_path, monkeypatch) -> None:
     assert str(base / "updates" / "setup-0.5.0.log") in command
     assert kwargs["stdin"] == install.subprocess.DEVNULL
     spawn_log = base / "updates" / "spawn.log"
-    assert "Starting update wrapper" in spawn_log.read_text(encoding="utf-8")
-    assert str(pending.path) in spawn_log.read_text(encoding="utf-8")
+    spawn_text = spawn_log.read_text(encoding="utf-8")
+    assert "Starting update wrapper" in spawn_text
+    # O log grava a lista com repr(), que escapa as barras invertidas do
+    # caminho no Windows; por isso a comparação precisa usar o mesmo formato.
+    assert repr(str(pending.path)) in spawn_text
 
     calls.clear()
     monkeypatch.setattr(install, "_windows_all_users", lambda: True)
