@@ -46,6 +46,23 @@ function Wait-InstalledVersion {
     return $false
 }
 
+function Invoke-AppCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$App,
+        [Parameter(Mandatory = $true)][string]$Arguments,
+        [int]$TimeoutSeconds = 60
+    )
+    # Nao use Start-Process -Wait aqui: em alguns runners ele espera tambem
+    # pelo processo reaberto pelo instalador, que fica rodando para sempre.
+    $process = Start-Process -FilePath $App -ArgumentList $Arguments -PassThru
+    if (!$process.WaitForExit($TimeoutSeconds * 1000)) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "O comando '$Arguments' nao terminou em $TimeoutSeconds s"
+    }
+    $process.Refresh()
+    return $process.ExitCode
+}
+
 function Stop-LearningHelper {
     Get-Process -Name "learning-helper" -ErrorAction SilentlyContinue |
         Stop-Process -Force -ErrorAction SilentlyContinue
@@ -175,9 +192,9 @@ try {
     Write-Step "Aplicando atualizacao A -> B"
     $env:LEARNING_HELPER_UPDATE_URL = "http://127.0.0.1:$Port/latest.json"
     Remove-Item Env:LEARNING_HELPER_NO_UPDATE -ErrorAction SilentlyContinue
-    $apply = Start-Process -FilePath $app -Wait -PassThru -ArgumentList "--apply-update"
-    if ($apply.ExitCode -ne 0) {
-        throw "Falha ao iniciar a atualizacao (exit $($apply.ExitCode))"
+    $applyExit = Invoke-AppCommand -App $app -Arguments "--apply-update" -TimeoutSeconds 60
+    if ($applyExit -ne 0) {
+        throw "Falha ao iniciar a atualizacao (exit $applyExit)"
     }
 
     if (!(Wait-InstalledVersion -App $app -Expected $VersionB)) {
@@ -230,8 +247,8 @@ try {
         Set-Content -LiteralPath $badPath -Encoding ASCII
 
     $env:LEARNING_HELPER_UPDATE_URL = "http://127.0.0.1:$Port/latest-bad.json"
-    $bad = Start-Process -FilePath $app -Wait -PassThru -ArgumentList "--apply-update"
-    if ($bad.ExitCode -eq 0) {
+    $badExit = Invoke-AppCommand -App $app -Arguments "--apply-update" -TimeoutSeconds 60
+    if ($badExit -eq 0) {
         throw "Atualizacao com SHA-256 invalido foi aceita"
     }
     if ((Get-InstalledVersion -App $app) -ne $VersionB) {
@@ -240,6 +257,20 @@ try {
     Write-Step "Falha de SHA-256 rejeitada corretamente"
 } finally {
     Stop-LearningHelper
+    $updatesDir = Join-Path $testLocal "learning_helper\updates"
+    if (Test-Path -LiteralPath $updatesDir) {
+        Write-Step "Diagnostico da atualizacao"
+        Get-ChildItem -LiteralPath $updatesDir -Force |
+            Format-Table Name, Length, LastWriteTime |
+            Out-String | Write-Host
+        foreach ($name in @("spawn.log", "apply.log")) {
+            $path = Join-Path $updatesDir $name
+            if (Test-Path -LiteralPath $path) {
+                Write-Host "--- $name"
+                Get-Content -LiteralPath $path | Write-Host
+            }
+        }
+    }
     if ($server -and !$server.HasExited) {
         Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
     }
