@@ -377,7 +377,7 @@ make apresentacao   # gera a apresentação em docs/apresentacao
 
 As capturas precisam de uma sessão gráfica; o painel de estatísticas usa Firefox/geckodriver e o Selenium é baixado só durante a execução.
 
-Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make packages`) usam a versão de `src/learning_helper/__init__.py` e podem ser sobrescritos com `make packages VERSION=0.8.1`.
+Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make packages`) usam a versão de `src/learning_helper/__init__.py` e podem ser sobrescritos com `make packages VERSION=0.8.2`.
 
 ### Teste de atualização no Windows
 
@@ -387,10 +387,10 @@ Para repetir o teste manualmente em uma VM ou usuário de teste do Windows, inst
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/test-update.ps1 `
-  -InstallerA "dist\installer\LearningHelper-0.8.1-Setup.exe" `
-  -VersionA "0.8.1" `
-  -InstallerB "dist\installer\LearningHelper-0.8.2-Setup.exe" `
-  -VersionB "0.8.2" `
+  -InstallerA "dist\installer\LearningHelper-0.8.2-Setup.exe" `
+  -VersionA "0.8.2" `
+  -InstallerB "dist\installer\LearningHelper-0.8.3-Setup.exe" `
+  -VersionB "0.8.3" `
   -Force
 ```
 
@@ -502,13 +502,13 @@ uv sync --frozen --group dev
 uv run pyinstaller packaging/learning-helper.spec --noconfirm
 
 # AppImage (precisa do appimagetool no PATH ou em APPIMAGETOOL)
-APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.8.1
+APPIMAGETOOL=appimagetool packaging/linux/build-appimage.sh 0.8.2
 
 # pacote por usuário com install/uninstall
-packaging/linux/build-user-tarball.sh 0.8.1
+packaging/linux/build-user-tarball.sh 0.8.2
 
 # teste de instalação/desinstalação em HOME temporário
-packaging/linux/test-user-install.sh dist/LearningHelper-0.8.1-linux-x86_64.tar.gz
+packaging/linux/test-user-install.sh dist/LearningHelper-0.8.2-linux-x86_64.tar.gz
 ```
 
 Saídas em `dist/`: `LearningHelper-<versão>-x86_64.AppImage` e `LearningHelper-<versão>-linux-x86_64.tar.gz`.
@@ -518,7 +518,7 @@ Se o `appimagetool` for o próprio AppImage, rode:
 ```bash
 APPIMAGETOOL=./appimagetool-x86_64.AppImage \
 APPIMAGETOOL_ARGS=--appimage-extract-and-run \
-packaging/linux/build-appimage.sh 0.8.1
+packaging/linux/build-appimage.sh 0.8.2
 ```
 
 ### Windows
@@ -551,15 +551,15 @@ uv run python packaging/make_bathroom_image.py
 O workflow `.github/workflows/package.yml` roda em PRs e pushes que mexem em `src/`, `packaging/` ou dependências. Para publicar:
 
 ```bash
-git tag v0.8.1
-git push origin v0.8.1
+git tag v0.8.2
+git push origin v0.8.2
 ```
 
-O job de release confere se a tag (`v0.8.1`) bate com `__version__` (`0.8.1`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário, o `SHA256SUMS` e o **`latest.json`**. O manifesto é gerado por `packaging/make_update_manifest.py` a partir dos próprios artefatos e contém versão, nome, URL e SHA-256 de cada pacote; é dele que o updater lê a release mais recente.
+O job de release confere se a tag (`v0.8.2`) bate com `__version__` (`0.8.2`) e publica no GitHub um instalador Windows, um AppImage, o tar.gz por usuário, o `SHA256SUMS` e o **`latest.json`**. O manifesto é gerado por `packaging/make_update_manifest.py` a partir dos próprios artefatos e contém versão, nome, URL e SHA-256 de cada pacote; é dele que o updater lê a release mais recente.
 
 Para testar o manifesto localmente depois de gerar os pacotes:
 
 ```bash
 uv run python packaging/make_update_manifest.py \
-  --version 0.8.1 --dist dist --tag v0.8.1
+  --version 0.8.2 --dist dist --tag v0.8.2
 ```
