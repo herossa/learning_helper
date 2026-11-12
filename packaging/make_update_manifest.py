@@ -30,14 +30,21 @@ def build_manifest(
     *,
     tag: str | None = None,
     base_url: str | None = None,
+    asset_keys: list[str] | None = None,
 ) -> dict:
     release_tag = tag or f"v{version}"
     release_url = base_url or (
         f"https://github.com/{REPOSITORY}/releases/download/{release_tag}"
     )
+    selected = (
+        list(ASSET_PATTERNS)
+        if asset_keys is None
+        else [key for key in asset_keys if key in ASSET_PATTERNS]
+    )
     assets = {}
     missing = []
-    for key, pattern in ASSET_PATTERNS.items():
+    for key in selected:
+        pattern = ASSET_PATTERNS[key]
         name = pattern.format(version=version)
         path = dist_dir / name
         if not path.is_file():
@@ -50,6 +57,8 @@ def build_manifest(
         }
     if missing:
         raise SystemExit("Arquivos ausentes para o manifesto: " + ", ".join(missing))
+    if not assets:
+        raise SystemExit("Nenhum asset selecionado para o manifesto.")
     return {"version": version, "assets": assets}
 
 
@@ -59,8 +68,22 @@ def main() -> int:
     parser.add_argument("--dist", type=Path, required=True)
     parser.add_argument("--tag")
     parser.add_argument("--base-url")
+    parser.add_argument(
+        "--assets",
+        help=(
+            "Chaves separadas por vírgula a incluir no manifesto "
+            "(padrão: todas). Ex.: windows_setup"
+        ),
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+
+    asset_keys = None
+    if args.assets:
+        asset_keys = [item.strip() for item in args.assets.split(",") if item.strip()]
+        unknown = [item for item in asset_keys if item not in ASSET_PATTERNS]
+        if unknown:
+            parser.error("assets desconhecidos: " + ", ".join(unknown))
 
     version = args.version.lstrip("vV")
     manifest = build_manifest(
@@ -68,6 +91,7 @@ def main() -> int:
         args.dist,
         tag=args.tag,
         base_url=args.base_url,
+        asset_keys=asset_keys,
     )
     output = args.output or (args.dist / "latest.json")
     output.write_text(

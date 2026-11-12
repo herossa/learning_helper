@@ -260,7 +260,7 @@ def test_apply_appimage_replaces_file_from_script(tmp_path, monkeypatch) -> None
     assert spawned and spawned[0][0] == ["/bin/sh", str(script)]
 
 
-def test_apply_windows_builds_silent_arguments(tmp_path, monkeypatch) -> None:
+def test_apply_windows_writes_wrapper_script(tmp_path, monkeypatch) -> None:
     pending = install.PendingUpdate(
         "0.5.0", "windows_setup", tmp_path / "Setup.exe"
     )
@@ -269,6 +269,7 @@ def test_apply_windows_builds_silent_arguments(tmp_path, monkeypatch) -> None:
     calls = []
     monkeypatch.setattr(sys, "executable", str(executable))
     monkeypatch.setattr(install, "_windows_all_users", lambda: False)
+    monkeypatch.setattr(install, "_powershell_executable", lambda: "powershell.exe")
     monkeypatch.setattr(
         install.subprocess,
         "Popen",
@@ -277,12 +278,23 @@ def test_apply_windows_builds_silent_arguments(tmp_path, monkeypatch) -> None:
 
     install._apply_windows(pending, base)
 
+    script = base / "updates" / install.WINDOWS_APPLY_SCRIPT
+    content = script.read_text(encoding="utf-8-sig")
+    assert "Wait-Process" in content
+    assert "Start-Process" in content
+    assert "UPDATERESTART=1" in content
+    assert "Installer exit code" in content
+
     command, kwargs = calls[0]
-    assert "/VERYSILENT" in command
-    assert "/UPDATERESTART=1" in command
+    assert command[0] == "powershell.exe"
+    assert "-File" in command
+    assert str(script) in command
+    assert str(pending.path) in command
+    assert "-ParentPid" in command
     assert "/CURRENTUSER" in command
-    assert f'/DIR="{executable.parent}"' in command
-    assert f'/LOG="{base / "updates" / "apply.log"}"' in command
+    assert str(executable.parent) in command
+    assert str(base / "updates" / "apply.log") in command
+    assert str(base / "updates" / "setup-0.5.0.log") in command
     assert kwargs["stdin"] == install.subprocess.DEVNULL
 
     calls.clear()
@@ -513,6 +525,52 @@ def test_check_and_download_uses_manifest(tmp_path, monkeypatch) -> None:
     )
     assert pending is not None
     assert pending.version == "0.5.0"
+
+
+def test_update_service_retries_after_transient_failure(tmp_path, monkeypatch) -> None:
+    pending = install.PendingUpdate(
+        "0.5.0", "linux_tarball", tmp_path / "pkg"
+    )
+    calls = []
+
+    def flaky(*_args, **_kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise UpdateError("rede indisponível")
+        return pending
+
+    monkeypatch.setattr(service, "check_and_download", flaky)
+    update_service = service.UpdateService(
+        "0.4.0", tmp_path, retry_delays=(0.01,)
+    )
+    update_service.start()
+    update_service.wait(timeout=2)
+
+    assert len(calls) == 2
+    assert update_service.pending is pending
+    assert update_service.error is None
+
+
+def test_update_service_stops_before_retry(tmp_path, monkeypatch) -> None:
+    calls = []
+    started = threading.Event()
+
+    def unavailable(*_args, **_kwargs):
+        calls.append(1)
+        started.set()
+        raise UpdateError("rede indisponível")
+
+    monkeypatch.setattr(service, "check_and_download", unavailable)
+    update_service = service.UpdateService(
+        "0.4.0", tmp_path, retry_delays=(30.0,)
+    )
+    update_service.start()
+    assert started.wait(1)
+    update_service.stop()
+
+    assert len(calls) == 1
+    assert update_service.pending is None
+    assert update_service.error == "rede indisponível"
 
 
 class _ApiHandler(BaseHTTPRequestHandler):

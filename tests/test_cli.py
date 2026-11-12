@@ -64,6 +64,11 @@ def test_parse_args_accepts_update_and_quit_flags() -> None:
     assert args.quit is True
 
 
+def test_parse_args_accepts_apply_update() -> None:
+    args = parse_args(["--apply-update"])
+    assert args.apply_update is True
+
+
 def test_quit_writes_request_in_data_dir(tmp_path: Path) -> None:
     result = _run(
         "--quit",
@@ -134,6 +139,81 @@ def test_check_updates_returns_error_on_failure(monkeypatch, capsys) -> None:
     monkeypatch.setattr(client, "fetch_manifest", fail)
 
     assert app._check_updates() == 1
+    assert "sem rede" in capsys.readouterr().err
+
+
+def test_apply_update_unavailable_outside_build(monkeypatch, capsys) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install
+
+    monkeypatch.setattr(install, "asset_key", lambda: None)
+
+    assert app._apply_update() == 2
+    assert "não disponível" in capsys.readouterr().err
+
+
+def test_apply_update_downloads_and_starts(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install, service
+    from learning_helper.updates.install import PendingUpdate
+    from learning_helper.updates.state import load_state
+
+    pending = PendingUpdate(
+        "99.0.0", "linux_tarball", tmp_path / "pkg"
+    )
+    applied = []
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(
+        service, "check_and_download", lambda *_args, **_kwargs: pending
+    )
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+    monkeypatch.setattr(
+        install,
+        "apply_pending",
+        lambda item, base: applied.append((item, base)),
+    )
+
+    assert app._apply_update() == 0
+    assert applied == [(pending, tmp_path / "data")]
+    assert "Atualização 99.0.0 iniciada" in capsys.readouterr().out
+    state = load_state(tmp_path / "data")
+    assert state.pending_version == "99.0.0"
+    assert state.attempts == 1
+
+
+def test_apply_update_reports_when_up_to_date(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install, service
+
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(
+        service, "check_and_download", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+
+    assert app._apply_update() == 0
+    assert "Nenhuma atualização disponível" in capsys.readouterr().out
+
+
+def test_apply_update_returns_error_on_download_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install, service
+    from learning_helper.updates.manifest import UpdateError
+
+    def fail(*_args, **_kwargs):
+        raise UpdateError("sem rede")
+
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(service, "check_and_download", fail)
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+
+    assert app._apply_update() == 1
     assert "sem rede" in capsys.readouterr().err
 
 

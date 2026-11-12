@@ -68,6 +68,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Verifica se há uma versão nova e sai.",
     )
     parser.add_argument(
+        "--apply-update",
+        action="store_true",
+        help="Baixa e aplica a atualização disponível, se houver, e sai.",
+    )
+    parser.add_argument(
         "--quit",
         action="store_true",
         help="Encerra uma instância em execução.",
@@ -214,6 +219,51 @@ def _check_updates() -> int:
     return 0
 
 
+def _apply_update() -> int:
+    """Baixa e dispara a atualização sem abrir a interface.
+
+    Serve para diagnóstico e para o teste de fumaça do Windows. Em builds
+    instalados o instalador assume o controle e reabre o app; em execução a
+    partir do código-fonte não há pacote aplicável.
+    """
+    from learning_helper.updates.install import apply_pending, asset_key
+    from learning_helper.updates.manifest import UpdateError
+    from learning_helper.updates.service import check_and_download
+    from learning_helper.updates.state import load_state, record_attempt, save_state
+
+    if asset_key() is None:
+        print(
+            "Atualização automática não disponível nesta execução "
+            "(execute o build instalado).",
+            file=sys.stderr,
+        )
+        return 2
+
+    base = data_dir()
+    try:
+        pending = check_and_download(__version__, base, force=True)
+    except UpdateError as exc:
+        print(f"Não foi possível baixar a atualização: {exc}", file=sys.stderr)
+        return 1
+    if pending is None:
+        print(f"Nenhuma atualização disponível para {__version__}.")
+        return 0
+
+    state = load_state(base)
+    record_attempt(state, pending.version, pending.path)
+    save_state(base, state)
+    try:
+        apply_pending(pending, base)
+    except Exception as exc:
+        print(f"Falha ao aplicar a atualização: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"Atualização {pending.version} iniciada. "
+        "O app deve reabrir na versão nova."
+    )
+    return 0
+
+
 def _handle_autostart(args: argparse.Namespace) -> int | None:
     from learning_helper import autostart
 
@@ -306,6 +356,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check_updates:
         return _check_updates()
+    if args.apply_update:
+        return _apply_update()
     if args.quit:
         path = lifecycle.request_quit()
         print(f"Solicitação de encerramento enviada ({path}).")
