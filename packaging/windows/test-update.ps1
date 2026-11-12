@@ -10,7 +10,10 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
-$uv = (Get-Command uv -ErrorAction Stop).Source
+$python = Join-Path $root ".venv\Scripts\python.exe"
+if (!(Test-Path -LiteralPath $python)) {
+    throw "Ambiente .venv nao encontrado. Rode 'uv sync --group dev' antes do teste."
+}
 Set-Location $root
 
 function Write-Step {
@@ -133,13 +136,13 @@ try {
     $check = Join-Path $tempRoot "learning-helper-update-check.py"
     Write-SeedScript -Path $seed
     Write-CheckScript -Path $check
-    uv run python $seed
+    & $python $seed
     if ($LASTEXITCODE -ne 0) {
         throw "Falha ao preparar o banco de teste"
     }
 
     Write-Step "Gerando manifesto local para B"
-    uv run python packaging/make_update_manifest.py `
+    & $python packaging/make_update_manifest.py `
         --version $VersionB `
         --dist $distDir `
         --base-url "http://127.0.0.1:$Port" `
@@ -149,8 +152,8 @@ try {
     }
 
     Write-Step "Servindo $distDir em http://127.0.0.1:$Port"
-    $server = Start-Process -FilePath $uv -WindowStyle Hidden -PassThru -ArgumentList @(
-        "run", "python", "-m", "http.server", $Port, "--directory", $distDir
+    $server = Start-Process -FilePath $python -WindowStyle Hidden -PassThru -ArgumentList @(
+        "-m", "http.server", $Port, "--directory", $distDir
     )
     $ready = $false
     for ($i = 0; $i -lt 40; $i++) {
@@ -184,7 +187,7 @@ try {
     Start-Sleep -Seconds 1
 
     Write-Step "Conferindo banco preservado"
-    uv run python $check
+    & $python $check
     if ($LASTEXITCODE -ne 0) {
         throw "Os dados de teste nao foram preservados"
     }

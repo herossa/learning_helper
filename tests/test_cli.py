@@ -29,6 +29,18 @@ def test_version_flag() -> None:
     assert __version__ in result.stdout
 
 
+def test_ensure_std_streams_handles_windowed_build(monkeypatch) -> None:
+    from learning_helper import app
+
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+
+    app._ensure_std_streams()
+
+    assert sys.stdout is not None
+    assert sys.stderr is not None
+
+
 def test_self_check_passes_without_touching_user_data(tmp_path: Path) -> None:
     result = _run(
         "--self-check",
@@ -215,6 +227,27 @@ def test_apply_update_returns_error_on_download_failure(
 
     assert app._apply_update() == 1
     assert "sem rede" in capsys.readouterr().err
+
+
+def test_apply_update_requires_app_closed(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install
+
+    class BusyLock:
+        def acquire(self) -> bool:
+            return False
+
+        def release(self) -> None:
+            return None
+
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+    monkeypatch.setattr(app, "SingleInstance", lambda _path: BusyLock())
+
+    assert app._apply_update() == 1
+    assert "em execução" in capsys.readouterr().err
 
 
 def test_bathroom_flags_persist_preference(tmp_path: Path) -> None:

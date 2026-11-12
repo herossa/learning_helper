@@ -26,6 +26,19 @@ LOG_MAX_BYTES = 1_000_000
 LOG_BACKUPS = 2
 
 
+def _ensure_std_streams() -> None:
+    """Evita erro de `print` em builds gráficos do Windows.
+
+    O PyInstaller com ``console=False`` deixa ``sys.stdout``/``sys.stderr``
+    como ``None``. As opções de linha de comando ainda precisam terminar com o
+    código de saída correto, mesmo sem um console visível.
+    """
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Learning helper")
     parser.add_argument(
@@ -240,28 +253,41 @@ def _apply_update() -> int:
         return 2
 
     base = data_dir()
-    try:
-        pending = check_and_download(__version__, base, force=True)
-    except UpdateError as exc:
-        print(f"Não foi possível baixar a atualização: {exc}", file=sys.stderr)
+    lock = SingleInstance(base / "app.lock")
+    if not lock.acquire():
+        print(
+            "O app principal está em execução; feche-o antes de usar "
+            "--apply-update.",
+            file=sys.stderr,
+        )
         return 1
-    if pending is None:
-        print(f"Nenhuma atualização disponível para {__version__}.")
-        return 0
+    try:
+        try:
+            pending = check_and_download(__version__, base, force=True)
+        except UpdateError as exc:
+            print(
+                f"Não foi possível baixar a atualização: {exc}", file=sys.stderr
+            )
+            return 1
+        if pending is None:
+            print(f"Nenhuma atualização disponível para {__version__}.")
+            return 0
 
-    state = load_state(base)
-    record_attempt(state, pending.version, pending.path)
-    save_state(base, state)
-    try:
-        apply_pending(pending, base)
-    except Exception as exc:
-        print(f"Falha ao aplicar a atualização: {exc}", file=sys.stderr)
-        return 1
-    print(
-        f"Atualização {pending.version} iniciada. "
-        "O app deve reabrir na versão nova."
-    )
-    return 0
+        state = load_state(base)
+        record_attempt(state, pending.version, pending.path)
+        save_state(base, state)
+        try:
+            apply_pending(pending, base)
+        except Exception as exc:
+            print(f"Falha ao aplicar a atualização: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"Atualização {pending.version} iniciada. "
+            "O app deve reabrir na versão nova."
+        )
+        return 0
+    finally:
+        lock.release()
 
 
 def _handle_autostart(args: argparse.Namespace) -> int | None:
@@ -348,6 +374,7 @@ def _run_first_run_settings(store: Store) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _ensure_std_streams()
     args = parse_args(argv if argv is not None else sys.argv[1:])
     if args.self_check:
         return self_check()

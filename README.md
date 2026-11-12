@@ -383,7 +383,7 @@ Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make 
 
 O workflow `package` tem um job `windows-update` que instala a versão atual, gera a versão seguinte, serve um `latest.json` local e valida a atualização completa (download, SHA-256, Setup silencioso, reinício e preservação do banco). Ele também testa a rejeição de um pacote com SHA-256 inválido.
 
-Para repetir o teste manualmente em uma VM ou usuário de teste do Windows, instale o Inno Setup 6 e rode:
+Para repetir o teste manualmente em uma VM ou usuário de teste do Windows, instale o Inno Setup 6, rode `uv sync --group dev` e execute:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/test-update.ps1 `
