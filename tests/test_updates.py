@@ -284,6 +284,8 @@ def test_apply_windows_writes_wrapper_script(tmp_path, monkeypatch) -> None:
     assert "Start-Process" in content
     assert "UPDATERESTART=1" in content
     assert "Installer exit code" in content
+    assert "WaitForExit(300000)" in content
+    assert "-Wait -PassThru" not in content
 
     command, kwargs = calls[0]
     assert command[0] == "powershell.exe"

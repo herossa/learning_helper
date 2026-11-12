@@ -63,13 +63,22 @@ try {
         ('/DIR="{0}"' -f $InstallDir),
         ('/LOG="{0}"' -f $SetupLog)
     )
-    $process = Start-Process -FilePath $Setup -ArgumentList $arguments -Wait -PassThru
-    Write-UpdateLog ("Installer exit code: " + $process.ExitCode)
+    $process = Start-Process -FilePath $Setup -ArgumentList $arguments -PassThru
+    # Não use -Wait: o Setup inicia o app novo em [Run], e o -Wait do
+    # PowerShell pode esperar esse app (que fica aberto) em vez de retornar
+    # quando o instalador termina. WaitForExit espera só o processo do Setup.
+    if (-not $process.WaitForExit(300000)) {
+        Write-UpdateLog "Installer timed out; restarting the current version."
+        Start-LearningHelper
+        exit 1
+    }
+    $exitCode = $process.ExitCode
+    Write-UpdateLog ("Installer exit code: " + $exitCode)
 
-    if ($process.ExitCode -ne 0) {
+    if ($exitCode -ne 0) {
         Write-UpdateLog "Update failed; restarting the current version."
         Start-LearningHelper
-        exit $process.ExitCode
+        exit $exitCode
     }
 
     # O instalador usa /UPDATERESTART=1, mas garantir que exista uma instância
