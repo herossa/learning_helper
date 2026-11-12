@@ -28,6 +28,9 @@ from learning_helper.updates.state import (
 
 LOGGER = logging.getLogger(__name__)
 MANUAL_REQUEST_NAME = "manual.request"
+# Se a primeira consulta falhar (por exemplo, o Windows iniciou o app antes
+# da rede ficar disponível), tenta de novo sem exigir reiniciar o aplicativo.
+RETRY_DELAYS_SECONDS = (5 * 60.0, 15 * 60.0, 30 * 60.0)
 
 
 def manual_request_path(base: Path) -> Path:
@@ -138,11 +141,14 @@ class UpdateService:
         base: Path,
         *,
         manifest_url: str | None = None,
+        retry_delays: tuple[float, ...] = RETRY_DELAYS_SECONDS,
     ) -> None:
         self.current_version = current_version
         self.base = Path(base)
         self.manifest_url = manifest_url
+        self._retry_delays = retry_delays
         self._lock = threading.Lock()
+        self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._pending: PendingUpdate | None = None
         self._error: str | None = None
@@ -160,20 +166,43 @@ class UpdateService:
         )
         self._thread.start()
 
+    def stop(self) -> None:
+        """Interrompe novas tentativas em segundo plano."""
+        self._stop_event.set()
+        thread = self._thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+
+    def _retry_delay(self, attempt: int) -> float | None:
+        if not self._retry_delays:
+            return None
+        return self._retry_delays[min(attempt, len(self._retry_delays) - 1)]
+
     def _worker(self) -> None:
-        try:
-            pending = check_and_download(
-                self.current_version,
-                self.base,
-                manifest_url=self.manifest_url,
-            )
-        except Exception as exc:
-            LOGGER.warning("Não foi possível verificar atualizações: %s", exc)
+        attempt = 0
+        while not self._stop_event.is_set():
+            try:
+                pending = check_and_download(
+                    self.current_version,
+                    self.base,
+                    manifest_url=self.manifest_url,
+                )
+            except Exception as exc:
+                LOGGER.warning("Não foi possível verificar atualizações: %s", exc)
+                with self._lock:
+                    self._error = str(exc)
+                delay = self._retry_delay(attempt)
+                attempt += 1
+                if delay is None or self._stop_event.wait(delay):
+                    return
+                LOGGER.info(
+                    "Nova tentativa de atualização em %.0f segundos.", delay
+                )
+                continue
             with self._lock:
-                self._error = str(exc)
+                self._pending = pending
+                self._error = None
             return
-        with self._lock:
-            self._pending = pending
 
     def wait(self, timeout: float | None = None) -> None:
         thread = self._thread

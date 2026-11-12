@@ -17,6 +17,87 @@ WINDOWS_SETUP = "windows_setup"
 LINUX_APPIMAGE = "linux_appimage"
 LINUX_TARBALL = "linux_tarball"
 
+WINDOWS_APPLY_SCRIPT = "apply-update.ps1"
+WINDOWS_APPLY_SCRIPT_CONTENT = r"""param(
+    [Parameter(Mandatory = $true)][int]$ParentPid,
+    [Parameter(Mandatory = $true)][string]$Setup,
+    [Parameter(Mandatory = $true)][string]$App,
+    [Parameter(Mandatory = $true)][string]$InstallDir,
+    [Parameter(Mandatory = $true)][string]$Scope,
+    [Parameter(Mandatory = $true)][string]$Log,
+    [Parameter(Mandatory = $true)][string]$SetupLog
+)
+$ErrorActionPreference = "Stop"
+
+function Write-UpdateLog {
+    param([string]$Message)
+    $line = "[{0}] {1}" -f (Get-Date).ToString("o"), $Message
+    Add-Content -LiteralPath $Log -Value $line -Encoding UTF8
+}
+
+function Start-LearningHelper {
+    try {
+        Start-Process -FilePath $App -WorkingDirectory (Split-Path -Parent $App) | Out-Null
+    } catch {
+        Write-UpdateLog ("Could not restart the app: " + $_.Exception.Message)
+    }
+}
+
+try {
+    Write-UpdateLog ("Waiting for process " + $ParentPid + " to exit.")
+    try {
+        Wait-Process -Id $ParentPid -Timeout 60 -ErrorAction Stop
+    } catch {
+        # O processo já saiu ou não existe mais.
+    }
+    Start-Sleep -Milliseconds 500
+
+    Write-UpdateLog ("Running installer: " + $Setup)
+    $arguments = @(
+        "/VERYSILENT",
+        "/SUPPRESSMSGBOXES",
+        "/NORESTART",
+        "/CLOSEAPPLICATIONS",
+        "/UPDATERESTART=1",
+        $Scope,
+        ('/DIR="{0}"' -f $InstallDir),
+        ('/LOG="{0}"' -f $SetupLog)
+    )
+    $process = Start-Process -FilePath $Setup -ArgumentList $arguments -PassThru
+    # Não use -Wait: o Setup inicia o app novo em [Run], e o -Wait do
+    # PowerShell pode esperar esse app (que fica aberto) em vez de retornar
+    # quando o instalador termina. WaitForExit espera só o processo do Setup.
+    if (-not $process.WaitForExit(300000)) {
+        Write-UpdateLog "Installer timed out; restarting the current version."
+        Start-LearningHelper
+        exit 1
+    }
+    $exitCode = $process.ExitCode
+    Write-UpdateLog ("Installer exit code: " + $exitCode)
+
+    if ($exitCode -ne 0) {
+        Write-UpdateLog "Update failed; restarting the current version."
+        Start-LearningHelper
+        exit $exitCode
+    }
+
+    # O instalador usa /UPDATERESTART=1, mas garantir que exista uma instância
+    # evita deixar o usuário sem app se o [Run] do Inno Setup falhar.
+    Start-Sleep -Seconds 1
+    $running = Get-Process -Name "learning-helper" -ErrorAction SilentlyContinue
+    if (-not $running) {
+        Write-UpdateLog "Update applied; starting the app."
+        Start-LearningHelper
+    } else {
+        Write-UpdateLog "Update applied; the app is already running."
+    }
+} catch {
+    Write-UpdateLog ("Update failed: " + $_.Exception.Message)
+    Start-LearningHelper
+    exit 1
+}
+"""
+
 
 @dataclass(frozen=True)
 class PendingUpdate:
@@ -69,6 +150,27 @@ def _write_script(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
+def _write_powershell_script(path: Path) -> None:
+    # O PowerShell 5.1 no Windows lê arquivos UTF-8 sem BOM como ANSI; o BOM
+    # mantém o script intacto mesmo se ele ganhar acentos no futuro.
+    path.write_text(WINDOWS_APPLY_SCRIPT_CONTENT, encoding="utf-8-sig")
+
+
+def _powershell_executable() -> str:
+    root = os.environ.get("SystemRoot")
+    if root:
+        candidate = (
+            Path(root)
+            / "System32"
+            / "WindowsPowerShell"
+            / "v1.0"
+            / "powershell.exe"
+        )
+        if candidate.is_file():
+            return str(candidate)
+    return "powershell.exe"
+
+
 def _spawn_detached(command: list[str], *, log_path: Path) -> None:
     with log_path.open("a", encoding="utf-8") as log:
         subprocess.Popen(
@@ -95,30 +197,61 @@ def _windows_all_users() -> bool:
 
 
 def _apply_windows(pending: PendingUpdate, base: Path) -> None:
+    """Agenda um script que espera o app sair, instala e reabre em caso de falha.
+
+    Disparar o Setup direto e encerrar o app deixa o usuário sem aplicação se o
+    instalador falhar (UAC, antivírus, arquivo em uso). O script mantém o
+    resultado no log e reabre a versão atual quando o Setup retorna erro.
+    """
     log_path = _log_file(base)
+    setup_log = Path(base) / "updates" / f"setup-{pending.version}.log"
+    setup_log.parent.mkdir(parents=True, exist_ok=True)
+    script = Path(base) / "updates" / WINDOWS_APPLY_SCRIPT
+    _write_powershell_script(script)
+
+    # CREATE_NO_WINDOW dá um console oculto ao PowerShell. DETACHED_PROCESS
+    # deixava alguns runners sem console e o wrapper morria antes de gravar o
+    # primeiro log, sem deixar rastro.
     flags = 0
-    flags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
     flags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     scope = "/ALLUSERS" if _windows_all_users() else "/CURRENTUSER"
-    install_dir = Path(sys.executable).resolve().parent
-    subprocess.Popen(
-        [
-            str(pending.path),
-            "/VERYSILENT",
-            "/SUPPRESSMSGBOXES",
-            "/NORESTART",
-            "/CLOSEAPPLICATIONS",
-            "/UPDATERESTART=1",
-            scope,
-            f'/DIR="{install_dir}"',
-            f'/LOG="{log_path}"',
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        creationflags=flags,
-    )
+    executable = Path(sys.executable).resolve()
+    command = [
+        _powershell_executable(),
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-ParentPid",
+        str(os.getpid()),
+        "-Setup",
+        str(pending.path),
+        "-App",
+        str(executable),
+        "-InstallDir",
+        str(executable.parent),
+        "-Scope",
+        scope,
+        "-Log",
+        str(log_path),
+        "-SetupLog",
+        str(setup_log),
+    ]
+    spawn_log = Path(base) / "updates" / "spawn.log"
+    with spawn_log.open("a", encoding="utf-8") as output:
+        output.write(f"Starting update wrapper: {command!r}\n")
+        output.flush()
+        subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            creationflags=flags,
+        )
 
 
 def _safe_extract(archive: Path, destination: Path) -> None:

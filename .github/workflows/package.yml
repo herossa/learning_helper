@@ -88,6 +88,58 @@ jobs:
           path: dist/installer/*.exe
           if-no-files-found: error
 
+  windows-update:
+    needs: windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Instalar Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Baixar instalador da versão atual
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/installer
+      - name: Gerar instalador da versão seguinte
+        shell: pwsh
+        run: |
+          $versionA = (uv run python -c "from learning_helper import __version__; print(__version__)").Trim()
+          $parts = $versionA.Split(".")
+          $versionB = "{0}.{1}.{2}" -f $parts[0], $parts[1], ([int]$parts[2] + 1)
+          $init = "src/learning_helper/__init__.py"
+          $content = Get-Content $init -Raw
+          $content = [regex]::Replace($content, '__version__ = "[^"]+"', "__version__ = `"$versionB`"")
+          Set-Content -Path $init -Value $content -NoNewline
+          powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/build.ps1
+          if ($LASTEXITCODE -ne 0) { throw "build da versão $versionB falhou" }
+          "VERSION_A=$versionA" >> $env:GITHUB_ENV
+          "VERSION_B=$versionB" >> $env:GITHUB_ENV
+      - name: Testar atualização A -> B
+        shell: pwsh
+        run: |
+          $installerA = (Get-ChildItem dist/installer/*.exe |
+            Where-Object { $_.Name -notlike "*$env:VERSION_B*" } |
+            Select-Object -First 1).FullName
+          $installerB = (Get-ChildItem "dist/installer/LearningHelper-$env:VERSION_B-Setup.exe").FullName
+          powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/test-update.ps1 `
+            -InstallerA $installerA `
+            -VersionA $env:VERSION_A `
+            -InstallerB $installerB `
+            -VersionB $env:VERSION_B `
+            -Force
+      - name: Guardar diagnóstico da atualização
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-update-diagnostics
+          path: |
+            ${{ runner.temp }}/learning-helper-update-e2e/**
+            dist/installer/latest*.json
+          if-no-files-found: ignore
+
   linux:
     runs-on: ubuntu-22.04
     steps:
@@ -156,7 +208,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, linux]
+    needs: [windows, windows-update, linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

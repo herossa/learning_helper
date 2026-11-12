@@ -188,7 +188,7 @@ A seção **Dados** mostra o caminho do banco e abre a pasta onde ficam o banco 
 
 A atualização automática está disponível **a partir da v0.5.0**. Quem ainda está na v0.4.0 ou anterior precisa instalar a v0.5.0 uma vez; depois disso, as próximas versões instalam sozinhas.
 
-Builds instalados consultam o `latest.json` da release mais recente **uma vez ao iniciar** (se a opção estiver ligada) e também pelo botão **Verificar atualizações agora** em Configurações. Não há verificação periódica enquanto o app está aberto. O repositório e as releases são públicos, então a atualização funciona sem token.
+Builds instalados consultam o `latest.json` da release mais recente **uma vez ao iniciar** (se a opção estiver ligada) e também pelo botão **Verificar atualizações agora** em Configurações. Se a primeira consulta falhar (por exemplo, o Windows iniciou o app antes da rede ficar disponível), o app tenta de novo após 5, 15 e 30 minutos, sem exigir reiniciar. Não há verificação periódica depois de uma consulta bem-sucedida. O repositório e as releases são públicos, então a atualização funciona sem token.
 
 Quando há uma versão nova:
 
@@ -206,7 +206,15 @@ A instalação padrão por usuário não pede senha. Se o Windows foi instalado 
 
 Para desligar a verificação automática, use a opção em **Configurações** ou defina `LEARNING_HELPER_NO_UPDATE=1` no ambiente. O botão manual continua disponível. Em execução a partir do código-fonte, o app apenas informa se há versão nova; ele não se auto-instala.
 
-Se uma instalação falhar três vezes, o app espera 7 dias antes de tentar a mesma versão de novo. **Verificar atualizações agora** ignora esse bloqueio e tenta novamente. O andamento fica em `updates/apply.log` e em `app.log` (veja [Dados locais](#dados-locais)).
+Se uma instalação falhar três vezes, o app espera 7 dias antes de tentar a mesma versão de novo. **Verificar atualizações agora** ignora esse bloqueio e tenta novamente. O andamento fica em `updates/apply.log` e em `app.log` (veja [Dados locais](#dados-locais)). No Windows, o `apply.log` registra o código de saída do instalador e, se o Setup falhar, o app é reaberto na versão atual em vez de ficar fechado; o log detalhado do Inno Setup fica em `updates/setup-<versão>.log`.
+
+Também é possível forçar o download e a aplicação pelo terminal, sem abrir a interface:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\LearningHelper\learning-helper.exe" --apply-update
+```
+
+O comando só funciona em builds instalados e exige que o app principal esteja fechado, para não haver dois instaladores ao mesmo tempo. Ele baixa o pacote, confere o SHA-256 e dispara a instalação; o app reabre na versão nova.
 
 ### Repositório público, token e espelhos
 
@@ -294,6 +302,7 @@ A subpasta `updates/` guarda o que o atualizador precisa:
 - `state.json`: última versão pendente, tentativas e bloqueio temporário;
 - `manual.request`: aviso das Configurações para o overlay aplicar um download manual;
 - `apply.log`: saída do instalador ou do script de atualização;
+- `setup-<versão>.log`: log detalhado do Inno Setup no Windows;
 - `<versão>/`: pacote baixado e conferido por SHA-256.
 
 Ela pode ser apagada a qualquer momento; o app baixa de novo na próxima verificação.
@@ -370,6 +379,23 @@ As capturas precisam de uma sessão gráfica; o painel de estatísticas usa Fire
 
 Os alvos de empacotamento (`make build`, `make appimage`, `make tarball`, `make packages`) usam a versão de `src/learning_helper/__init__.py` e podem ser sobrescritos com `make packages VERSION=0.8.1`.
 
+### Teste de atualização no Windows
+
+O workflow `package` tem um job `windows-update` que instala a versão atual, gera a versão seguinte, serve um `latest.json` local e valida a atualização completa (download, SHA-256, Setup silencioso, reinício e preservação do banco). Ele também testa a rejeição de um pacote com SHA-256 inválido.
+
+Para repetir o teste manualmente em uma VM ou usuário de teste do Windows, instale o Inno Setup 6, rode `uv sync --group dev` e execute:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File packaging/windows/test-update.ps1 `
+  -InstallerA "dist\installer\LearningHelper-0.8.1-Setup.exe" `
+  -VersionA "0.8.1" `
+  -InstallerB "dist\installer\LearningHelper-0.8.2-Setup.exe" `
+  -VersionB "0.8.2" `
+  -Force
+```
+
+O script usa uma pasta de dados temporária, exige `-Force` se já existir uma instalação em `%LOCALAPPDATA%\Programs\LearningHelper` e desinstala o app ao final. Os logs ficam na pasta temporária e em `updates/apply.log`.
+
 No Windows, o `make` não vem instalado por padrão: use o Git Bash/MSYS2 (ou instale com `choco install make`). Os comandos com `uv` mostrados acima continuam funcionando normalmente.
 
 ### Branches e pull requests
@@ -409,6 +435,7 @@ O merge deve ser feito pela interface do GitHub ou por `gh pr merge`. O bloqueio
 --settings                    abre a tela de configuração e sai
 --stats                       abre as estatísticas no navegador
 --check-updates               consulta o manifesto de atualização e informa se há versão nova
+--apply-update                baixa e aplica a atualização disponível (somente build instalado)
 --quit                        encerra app, configurações e servidor de estatísticas em execução
 --debug                       intervalo curto e botão de fechar no overlay
 --db CAMINHO                  usa outro arquivo SQLite
@@ -420,7 +447,7 @@ O merge deve ser feito pela interface do GitHub ou por `gh pr merge`. O bloqueio
 
 No Windows o autostart é gerenciado pelo instalador; as duas opções de autostart apenas avisam isso e não alteram nada. As opções do lembrete de banheiro valem em qualquer plataforma e gravam a preferência no banco.
 
-`--check-updates` não baixa nem instala nada: só consulta o `latest.json`. Ele sai com código 0 quando a consulta funciona (mesmo que haja versão nova) e 1 em caso de erro de rede/manifesto.
+`--check-updates` não baixa nem instala nada: só consulta o `latest.json`. Ele sai com código 0 quando a consulta funciona (mesmo que haja versão nova) e 1 em caso de erro de rede/manifesto. `--apply-update` baixa e aplica a versão nova; sai com 0 quando não há nada a fazer ou quando a instalação foi iniciada, 1 em caso de erro de download/SHA-256 e 2 quando não está em um build instalado.
 
 ### Testes
 

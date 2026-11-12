@@ -29,6 +29,18 @@ def test_version_flag() -> None:
     assert __version__ in result.stdout
 
 
+def test_ensure_std_streams_handles_windowed_build(monkeypatch) -> None:
+    from learning_helper import app
+
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+
+    app._ensure_std_streams()
+
+    assert sys.stdout is not None
+    assert sys.stderr is not None
+
+
 def test_self_check_passes_without_touching_user_data(tmp_path: Path) -> None:
     result = _run(
         "--self-check",
@@ -62,6 +74,11 @@ def test_parse_args_accepts_update_and_quit_flags() -> None:
     args = parse_args(["--check-updates", "--quit"])
     assert args.check_updates is True
     assert args.quit is True
+
+
+def test_parse_args_accepts_apply_update() -> None:
+    args = parse_args(["--apply-update"])
+    assert args.apply_update is True
 
 
 def test_quit_writes_request_in_data_dir(tmp_path: Path) -> None:
@@ -135,6 +152,102 @@ def test_check_updates_returns_error_on_failure(monkeypatch, capsys) -> None:
 
     assert app._check_updates() == 1
     assert "sem rede" in capsys.readouterr().err
+
+
+def test_apply_update_unavailable_outside_build(monkeypatch, capsys) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install
+
+    monkeypatch.setattr(install, "asset_key", lambda: None)
+
+    assert app._apply_update() == 2
+    assert "não disponível" in capsys.readouterr().err
+
+
+def test_apply_update_downloads_and_starts(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install, service
+    from learning_helper.updates.install import PendingUpdate
+    from learning_helper.updates.state import load_state
+
+    pending = PendingUpdate(
+        "99.0.0", "linux_tarball", tmp_path / "pkg"
+    )
+    applied = []
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(
+        service, "check_and_download", lambda *_args, **_kwargs: pending
+    )
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+    monkeypatch.setattr(
+        install,
+        "apply_pending",
+        lambda item, base: applied.append((item, base)),
+    )
+
+    assert app._apply_update() == 0
+    assert applied == [(pending, tmp_path / "data")]
+    assert "Atualização 99.0.0 iniciada" in capsys.readouterr().out
+    state = load_state(tmp_path / "data")
+    assert state.pending_version == "99.0.0"
+    assert state.attempts == 1
+
+
+def test_apply_update_reports_when_up_to_date(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install, service
+
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(
+        service, "check_and_download", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+
+    assert app._apply_update() == 0
+    assert "Nenhuma atualização disponível" in capsys.readouterr().out
+
+
+def test_apply_update_returns_error_on_download_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install, service
+    from learning_helper.updates.manifest import UpdateError
+
+    def fail(*_args, **_kwargs):
+        raise UpdateError("sem rede")
+
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(service, "check_and_download", fail)
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+
+    assert app._apply_update() == 1
+    assert "sem rede" in capsys.readouterr().err
+
+
+def test_apply_update_requires_app_closed(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from learning_helper import app
+    from learning_helper.updates import install
+
+    class BusyLock:
+        def acquire(self) -> bool:
+            return False
+
+        def release(self) -> None:
+            return None
+
+    monkeypatch.setattr(install, "asset_key", lambda: "linux_tarball")
+    monkeypatch.setattr(app, "data_dir", lambda: tmp_path / "data")
+    monkeypatch.setattr(app, "SingleInstance", lambda _path: BusyLock())
+
+    assert app._apply_update() == 1
+    assert "em execução" in capsys.readouterr().err
 
 
 def test_bathroom_flags_persist_preference(tmp_path: Path) -> None:
