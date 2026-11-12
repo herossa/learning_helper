@@ -296,6 +296,9 @@ def test_apply_windows_writes_wrapper_script(tmp_path, monkeypatch) -> None:
     assert str(base / "updates" / "apply.log") in command
     assert str(base / "updates" / "setup-0.5.0.log") in command
     assert kwargs["stdin"] == install.subprocess.DEVNULL
+    spawn_log = base / "updates" / "spawn.log"
+    assert "Starting update wrapper" in spawn_log.read_text(encoding="utf-8")
+    assert str(pending.path) in spawn_log.read_text(encoding="utf-8")
 
     calls.clear()
     monkeypatch.setattr(install, "_windows_all_users", lambda: True)

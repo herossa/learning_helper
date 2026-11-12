@@ -200,43 +200,49 @@ def _apply_windows(pending: PendingUpdate, base: Path) -> None:
     script = Path(base) / "updates" / WINDOWS_APPLY_SCRIPT
     _write_powershell_script(script)
 
+    # CREATE_NO_WINDOW dá um console oculto ao PowerShell. DETACHED_PROCESS
+    # deixava alguns runners sem console e o wrapper morria antes de gravar o
+    # primeiro log, sem deixar rastro.
     flags = 0
-    flags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
     flags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     scope = "/ALLUSERS" if _windows_all_users() else "/CURRENTUSER"
     executable = Path(sys.executable).resolve()
-    subprocess.Popen(
-        [
-            _powershell_executable(),
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-WindowStyle",
-            "Hidden",
-            "-File",
-            str(script),
-            "-ParentPid",
-            str(os.getpid()),
-            "-Setup",
-            str(pending.path),
-            "-App",
-            str(executable),
-            "-InstallDir",
-            str(executable.parent),
-            "-Scope",
-            scope,
-            "-Log",
-            str(log_path),
-            "-SetupLog",
-            str(setup_log),
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        close_fds=True,
-        creationflags=flags,
-    )
+    command = [
+        _powershell_executable(),
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-ParentPid",
+        str(os.getpid()),
+        "-Setup",
+        str(pending.path),
+        "-App",
+        str(executable),
+        "-InstallDir",
+        str(executable.parent),
+        "-Scope",
+        scope,
+        "-Log",
+        str(log_path),
+        "-SetupLog",
+        str(setup_log),
+    ]
+    spawn_log = Path(base) / "updates" / "spawn.log"
+    with spawn_log.open("a", encoding="utf-8") as output:
+        output.write(f"Starting update wrapper: {command!r}\n")
+        output.flush()
+        subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            creationflags=flags,
+        )
 
 
 def _safe_extract(archive: Path, destination: Path) -> None:
