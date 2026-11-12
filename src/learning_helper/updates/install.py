@@ -90,7 +90,6 @@ try {
 """
 
 
-
 @dataclass(frozen=True)
 class PendingUpdate:
     version: str

@@ -30,9 +30,24 @@ def _ensure_std_streams() -> None:
     """Evita erro de `print` em builds gráficos do Windows.
 
     O PyInstaller com ``console=False`` deixa ``sys.stdout``/``sys.stderr``
-    como ``None``. As opções de linha de comando ainda precisam terminar com o
-    código de saída correto, mesmo sem um console visível.
+    como ``None``. Se o comando foi chamado a partir de um terminal, tenta
+    anexar ao console do processo pai para que ``--version`` e
+    ``--check-updates`` continuem visíveis. Sem console, descarta a saída mas
+    preserva o código de saída.
     """
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            if ctypes.windll.kernel32.AttachConsole(-1):
+                if sys.stdout is None:
+                    sys.stdout = open("CONOUT$", "w", buffering=1, errors="replace")
+                if sys.stderr is None:
+                    sys.stderr = open("CONOUT$", "w", buffering=1, errors="replace")
+        except Exception:
+            pass
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")
     if sys.stderr is None:
@@ -214,6 +229,7 @@ def _check_updates() -> int:
     from learning_helper.updates.install import select_asset
     from learning_helper.updates.manifest import UpdateError, is_newer
 
+    print(f"Versão atual: {__version__}; dados: {data_dir()}")
     try:
         release = fetch_manifest()
     except UpdateError as exc:

@@ -214,7 +214,7 @@ Também é possível forçar o download e a aplicação pelo terminal, sem abrir
 & "$env:LOCALAPPDATA\Programs\LearningHelper\learning-helper.exe" --apply-update
 ```
 
-O comando só funciona em builds instalados. Ele baixa o pacote, confere o SHA-256 e dispara a instalação; o app reabre na versão nova.
+O comando só funciona em builds instalados e exige que o app principal esteja fechado, para não haver dois instaladores ao mesmo tempo. Ele baixa o pacote, confere o SHA-256 e dispara a instalação; o app reabre na versão nova.
 
 ### Repositório público, token e espelhos
 

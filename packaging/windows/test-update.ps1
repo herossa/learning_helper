@@ -183,6 +183,23 @@ try {
     if (!(Wait-InstalledVersion -App $app -Expected $VersionB)) {
         throw "O aplicativo nao chegou a versao $VersionB"
     }
+
+    $log = Join-Path $testLocal "learning_helper\updates\apply.log"
+    $logReady = $false
+    for ($i = 0; $i -lt 60; $i++) {
+        if (Test-Path -LiteralPath $log) {
+            $logContent = Get-Content -LiteralPath $log -Raw
+            if ($logContent -match "Update applied|Update failed") {
+                $logReady = $true
+                break
+            }
+        }
+        Start-Sleep -Seconds 1
+    }
+    if (!$logReady) {
+        throw "O wrapper da atualizacao nao terminou a tempo"
+    }
+
     Stop-LearningHelper
     Start-Sleep -Seconds 1
 
@@ -192,11 +209,6 @@ try {
         throw "Os dados de teste nao foram preservados"
     }
 
-    $log = Join-Path $testLocal "learning_helper\updates\apply.log"
-    if (!(Test-Path -LiteralPath $log)) {
-        throw "apply.log nao foi criado"
-    }
-    $logContent = Get-Content -LiteralPath $log -Raw
     Write-Host $logContent
     if ($logContent -notmatch "Installer exit code: 0") {
         throw "O instalador nao terminou com sucesso"
@@ -215,7 +227,7 @@ try {
     }
     $badPath = Join-Path $distDir "latest-bad.json"
     $badManifest | ConvertTo-Json -Depth 6 |
-        Set-Content -LiteralPath $badPath -Encoding UTF8
+        Set-Content -LiteralPath $badPath -Encoding ASCII
 
     $env:LEARNING_HELPER_UPDATE_URL = "http://127.0.0.1:$Port/latest-bad.json"
     $bad = Start-Process -FilePath $app -Wait -PassThru -ArgumentList "--apply-update"
